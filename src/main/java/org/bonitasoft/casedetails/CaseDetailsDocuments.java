@@ -1,24 +1,18 @@
-package org.bonitasoft.tools.Process;
+package org.bonitasoft.casedetails;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.logging.Logger;
 
-import org.bonitasoft.engine.api.BusinessDataAPI;
+import org.bonitasoft.casedetails.CaseDetails.CaseDetailDocument;
+import org.bonitasoft.casedetails.CaseDetails.ProcessInstanceDescription;
+import org.bonitasoft.casedetails.CaseDetailsAPI.CaseHistoryParameter;
 import org.bonitasoft.engine.api.ProcessAPI;
 import org.bonitasoft.engine.bpm.document.Document;
 import org.bonitasoft.engine.bpm.document.DocumentCriterion;
 import org.bonitasoft.engine.bpm.document.DocumentException;
-import org.bonitasoft.engine.bpm.process.ProcessDefinition;
 import org.bonitasoft.engine.bpm.process.ProcessInstanceNotFoundException;
-import org.bonitasoft.engine.session.APISession;
 import org.bonitasoft.log.event.BEvent;
 import org.bonitasoft.log.event.BEvent.Level;
-import org.bonitasoft.tools.Process.CaseDetails.CaseDetailDocument;
-import org.bonitasoft.tools.Process.CaseDetails.ProcessInstanceDescription;
-import org.bonitasoft.tools.Process.CaseDetailsAPI.CaseHistoryParameter;
 
 /* -------------------------------------------------------------------- */
 /*                                                                      */
@@ -28,14 +22,16 @@ import org.bonitasoft.tools.Process.CaseDetailsAPI.CaseHistoryParameter;
 
 public class CaseDetailsDocuments {
 
-    final static Logger logger = Logger.getLogger(CaseProcessVariables.class.getName());
+    final static Logger logger = Logger.getLogger(CaseDetailsDocuments.class.getName());
 
-    private final static BEvent LOAD_DOCUMENT_FAILED = new BEvent(CaseDetailsDocuments.class.getName(), 1, Level.ERROR, "Load document failed",
+    private final static BEvent eventLoadDocumentFailed = new BEvent(CaseDetailsDocuments.class.getName(), 1, Level.ERROR, "Load document failed",
             "Loading the content of a document failed",
             "Result will not contains document content",
             "Check exception");
 
 
+    /** utility class should privatise the constructor */
+    private CaseDetailsDocuments() {}
     /**
      * @param caseDetails
      * @param caseHistoryParameter
@@ -61,7 +57,7 @@ public class CaseDetailsDocuments {
             }
             } catch (ProcessInstanceNotFoundException | DocumentException e) {
                 // TODO Auto-generated catch block
-                caseDetails.listEvents.add( new BEvent(LOAD_DOCUMENT_FAILED,  e, "ProcessInstance["+processInstanceDescription+"]"));
+                caseDetails.listEvents.add( new BEvent(eventLoadDocumentFailed,  e, "ProcessInstance["+processInstanceDescription+"]"));
             }
         }
     }

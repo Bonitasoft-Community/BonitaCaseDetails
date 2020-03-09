@@ -1,4 +1,4 @@
-package org.bonitasoft.tools.Process;
+package org.bonitasoft.casedetails;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -18,21 +18,21 @@ public class CaseDetailsAPI {
 
     final static Logger logger = Logger.getLogger(CaseDetailsAPI.class.getName());
 
-    public static String loggerLabel = "CaseDetails ##";
+    private final static String LOGGER_LABEL = "CaseDetails ##";
 
-    private final static BEvent MISSING_CASEID = new BEvent(CaseDetailsAPI.class.getName(), 1, Level.APPLICATIONERROR, "No Case ID",
+    private final static BEvent eventMissingCaseId = new BEvent(CaseDetailsAPI.class.getName(), 1, Level.APPLICATIONERROR, "No Case ID",
             "A case ID must be give, no one is given",
-            "No result",
+            "The result can't be calculated",
             "Give a case ID");
 
-    private final static BEvent NOCASEID = new BEvent(CaseDetailsAPI.class.getName(), 2, Level.APPLICATIONERROR, "Case ID does not exist",
-            "This case ID does not exist",
-            "No result",
+    private final static BEvent eventNoCaseId = new BEvent(CaseDetailsAPI.class.getName(), 2, Level.APPLICATIONERROR, "Case ID does not exist",
+            "This case ID does not exists",
+            "No result will be provided",
             "Give a existing (archived or active) case ID");
 
-    private final static BEvent CASEDETAILS_FAILED = new BEvent(CaseDetailsAPI.class.getName(), 3, Level.ERROR, "Error loading case",
+    private final static BEvent eventCaseDetailsFailed = new BEvent(CaseDetailsAPI.class.getName(), 3, Level.ERROR, "Error loading case",
             "An error arrived during the case Details operation",
-            "No result",
+            "No details result",
             "Give a existing (archived or active) case ID");
 
     /**
@@ -46,7 +46,7 @@ public class CaseDetailsAPI {
         public Long caseId;
         public boolean loadSubProcess = true;
         public boolean loadContract = true;
-        public boolean loadArchivedData = true;;
+        public boolean loadArchivedData = true;
         public boolean loadBdmVariables = true;
         public boolean loadContentBdmVariables = true;
         public boolean loadActivities = true;
@@ -98,25 +98,25 @@ public class CaseDetailsAPI {
     public CaseDetails getCaseDetails(CaseHistoryParameter caseHistoryParameter, ProcessAPI processAPI, IdentityAPI identityAPI, BusinessDataAPI businessDataAPI, APISession apiSession) {
 
         // Activities
-        logger.info("############### start caseDetail v1.0 on [" + caseHistoryParameter.caseId + "] ShowSubProcess["
+        logger.info(LOGGER_LABEL+"############### start caseDetail v1.0 on [" + caseHistoryParameter.caseId + "] ShowSubProcess["
                 + caseHistoryParameter.loadSubProcess + "]");
 
         CaseDetails caseDetails = new CaseDetails(caseHistoryParameter.caseId);
         try {
 
             if (caseHistoryParameter.caseId == null) {
-                caseDetails.listEvents.add(MISSING_CASEID);
+                caseDetails.listEvents.add(eventMissingCaseId);
                 return caseDetails;
             }
 
             // load process now
-            CaseProcessInstance.loadProcessInstances(caseDetails, caseHistoryParameter, processAPI);
+            CaseProcessInstance.loadProcessInstances(caseDetails, caseHistoryParameter, processAPI,identityAPI);
 
-            if (caseDetails.listProcessInstances.size() == 0) {
-                caseDetails.listEvents.add(new BEvent(NOCASEID, "Given CaseId[" + caseHistoryParameter.caseId+"]"));
+            if (caseDetails.listProcessInstances.isEmpty()) {
+                caseDetails.listEvents.add(new BEvent(eventNoCaseId, "Given CaseId[" + caseHistoryParameter.caseId+"]"));
 
             }
-
+            // 
             // load activity now
             if (caseHistoryParameter.loadActivities)
                 CaseActivities.loadActivities(caseDetails, caseHistoryParameter, processAPI, identityAPI);
@@ -142,8 +142,8 @@ public class CaseDetailsAPI {
             final StringWriter sw = new StringWriter();
             e.printStackTrace(new PrintWriter(sw));
 
-            logger.severe("Error during get CaseHistory" + e.toString() + " at " + sw.toString());
-            caseDetails.listEvents.add(new BEvent(CASEDETAILS_FAILED, e, "Case Id[" + caseDetails.rootCaseId + "]"));
+            logger.severe(LOGGER_LABEL+"Error during get CaseHistory" + e.toString() + " at " + sw.toString());
+            caseDetails.listEvents.add(new BEvent(eventCaseDetailsFailed, e, "Case Id[" + caseDetails.rootCaseId + "]"));
 
         }
         return caseDetails;

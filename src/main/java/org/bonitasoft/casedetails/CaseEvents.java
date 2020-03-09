@@ -1,4 +1,4 @@
-package org.bonitasoft.tools.Process;
+package org.bonitasoft.casedetails;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -8,9 +8,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.logging.Logger;
 
+import org.bonitasoft.casedetails.CaseDetails.CaseDetailFlowNode;
+import org.bonitasoft.casedetails.CaseDetails.MessageContent;
+import org.bonitasoft.casedetails.CaseDetails.MessageDetail;
+import org.bonitasoft.casedetails.CaseDetails.ProcessInstanceDescription;
+import org.bonitasoft.casedetails.CaseDetails.SignalDetail;
+import org.bonitasoft.casedetails.CaseDetailsAPI.CaseHistoryParameter;
 import org.bonitasoft.engine.api.IdentityAPI;
 import org.bonitasoft.engine.api.ProcessAPI;
 import org.bonitasoft.engine.bpm.flownode.CatchEventDefinition;
@@ -24,12 +29,6 @@ import org.bonitasoft.engine.bpm.process.DesignProcessDefinition;
 import org.bonitasoft.engine.bpm.process.ProcessDefinitionNotFoundException;
 import org.bonitasoft.log.event.BEvent;
 import org.bonitasoft.log.event.BEvent.Level;
-import org.bonitasoft.tools.Process.CaseDetails.CaseDetailFlowNode;
-import org.bonitasoft.tools.Process.CaseDetails.MessageContent;
-import org.bonitasoft.tools.Process.CaseDetails.MessageDetail;
-import org.bonitasoft.tools.Process.CaseDetails.ProcessInstanceDescription;
-import org.bonitasoft.tools.Process.CaseDetails.SignalDetail;
-import org.bonitasoft.tools.Process.CaseDetailsAPI.CaseHistoryParameter;
 
 /* -------------------------------------------------------------------- */
 /*                                                                      */
@@ -41,7 +40,7 @@ public class CaseEvents {
 
     final static Logger logger = Logger.getLogger(CaseEvents.class.getName());
 
-    private final static BEvent PROCESS_DESIGN_FAILED = new BEvent(CaseEvents.class.getName(), 1, Level.ERROR, "Can't load Process Design",
+    private final static BEvent eventProcessDesignFailed = new BEvent(CaseEvents.class.getName(), 1, Level.ERROR, "Can't load Process Design",
             "To load the event definition, the process design has to be loaded. This failed",
             "result will not contains the details of event",
             "Check exception ");
@@ -106,7 +105,7 @@ public class CaseEvents {
                     // CatchEventDefinition.getSignalEventTriggerDefinitions().getSignalName()
 
                 } catch (ProcessDefinitionNotFoundException e) {
-                    caseDetails.listEvents.add(new BEvent(PROCESS_DESIGN_FAILED, e, "ProcessDefinitionId[" + eventInstance.getProcessDefinitionId() + "]"));
+                    caseDetails.listEvents.add(new BEvent(eventProcessDesignFailed, e, "ProcessDefinitionId[" + eventInstance.getProcessDefinitionId() + "]"));
                 }
             }
         }
@@ -122,14 +121,14 @@ public class CaseEvents {
         Connection con = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
-        List<String> listCorrelationValue = new ArrayList<String>();
+        List<String> listCorrelationValue = new ArrayList<>();
         try {
 
             // Get the VALUE for the correlation
             // SELECT CORRELATION1, CORRELATION2, CORRELATION3, CORRELATION4,
             // CORRELATION5 FROM WAITING_EVENT where FLOWNODEINSTANCEID=60004
             con = CaseDetailsToolbox.getConnection();
-            List<String> listColumnName = new ArrayList<String>();
+            List<String> listColumnName = new ArrayList<>();
 
             for (int i = 1; i <= 5; i++) {
                 listColumnName.add("CORRELATION" + i);

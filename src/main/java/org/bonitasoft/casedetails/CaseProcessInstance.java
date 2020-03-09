@@ -1,4 +1,4 @@
-package org.bonitasoft.tools.Process;
+package org.bonitasoft.casedetails;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -11,12 +11,13 @@ import java.util.Date;
 import java.util.List;
 import java.util.logging.Logger;
 
+import org.bonitasoft.casedetails.CaseDetails.ProcessInstanceDescription;
+import org.bonitasoft.casedetails.CaseDetailsAPI.CaseHistoryParameter;
+import org.bonitasoft.engine.api.IdentityAPI;
 import org.bonitasoft.engine.api.ProcessAPI;
 import org.bonitasoft.engine.bpm.flownode.ActivityInstance;
 import org.bonitasoft.engine.bpm.flownode.ArchivedActivityInstance;
-import org.bonitasoft.engine.bpm.process.ProcessDefinition;
-import org.bonitasoft.tools.Process.CaseDetails.ProcessInstanceDescription;
-import org.bonitasoft.tools.Process.CaseDetailsAPI.CaseHistoryParameter;
+import org.bonitasoft.engine.identity.UserNotFoundException;
 
 /* -------------------------------------------------------------------- */
 /*                                                                      */
@@ -26,7 +27,7 @@ import org.bonitasoft.tools.Process.CaseDetailsAPI.CaseHistoryParameter;
 
 public class CaseProcessInstance {
     
-    final static Logger logger = Logger.getLogger(CaseContract.class.getName());
+    final static Logger logger = Logger.getLogger(CaseProcessInstance.class.getName());
 
     
     /**
@@ -38,7 +39,7 @@ public class CaseProcessInstance {
      * @return
      */
     protected static void loadProcessInstances(CaseDetails caseDetails,  CaseHistoryParameter caseHistoryParameter,
-            ProcessAPI processAPI) {
+            ProcessAPI processAPI, IdentityAPI identityAPI) {
       
         caseDetails.listProcessInstances = getAllProcessInstance(caseDetails.rootCaseId,
                 caseHistoryParameter.loadSubProcess, processAPI);
@@ -69,7 +70,7 @@ public class CaseProcessInstance {
                             processInstanceDescription.parentActivityName = act.getName();
                             processInstanceDescription.parentProcessInstanceId = act.getProcessInstanceId(); 
 
-                            ProcessDefinition parentProcessDefinition = processAPI.getProcessDefinition(act.getProcessDefinitionId());
+                            
                             processInstanceDescription.parentProcessDefinitionId = act.getProcessDefinitionId(); 
                             
                             processInstanceDescription.parentProcessDefinition = processAPI.getProcessDefinition(act.getProcessDefinitionId());
@@ -88,17 +89,43 @@ public class CaseProcessInstance {
 
             }
         }
+        
+        /** load the user who started the case
+         * 
+         */
+        for (ProcessInstanceDescription processInstanceDescription :caseDetails.listProcessInstances )
+        {
+            Long userId = null;
+            if (processInstanceDescription.processInstance != null)
+                userId = processInstanceDescription.processInstance.getStartedBy();
+            else if (processInstanceDescription.archProcessInstance != null)
+                userId = processInstanceDescription.archProcessInstance.getStartedBy();
+            
+            if (userId != null)
+            {
+                try {
+                    processInstanceDescription.userCreatedBy = identityAPI.getUser( userId );
+                } catch (UserNotFoundException e) {
+                    final StringWriter sw = new StringWriter();
+                    e.printStackTrace(new PrintWriter(sw));
+                    logger.severe("During searching userName["+processInstanceDescription.callerId+"] : " + e.toString() + " at " + sw.toString());
 
+                }
+             
+            }
+        }
+            
+        /**
+         * load contracts
+         */
         if (caseHistoryParameter.loadContract)
         {
             for (ProcessInstanceDescription processInstanceDescription :caseDetails.listProcessInstances )
             {
-                // processInstanceMap.put("contract", getContractValuesBySql(processInstanceDescription.processDefinitionId, processInstanceDescription.id, null, processAPI));
                 processInstanceDescription.contractInstanciation = CaseContract.getContractInstanciationValues(caseDetails,caseHistoryParameter, processInstanceDescription, processAPI);
                 
             }            
         }
-        return ;
     }
 
   
@@ -112,7 +139,7 @@ public class CaseProcessInstance {
    */
     private static List<ProcessInstanceDescription> getAllProcessInstance(long rootProcessInstance,
             boolean showSubProcess, ProcessAPI processAPI) {
-        List<ProcessInstanceDescription> listProcessInstances = new ArrayList<ProcessInstanceDescription>();
+        List<ProcessInstanceDescription> listProcessInstances = new ArrayList<>();
 
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -171,6 +198,13 @@ public class CaseProcessInstance {
             rs = null;
             pstmt.close();
             pstmt = null;
+            
+            for (ProcessInstanceDescription processInstance : listProcessInstances) {
+                if (processInstance.isActive)
+                    processInstance.processInstance = processAPI.getProcessInstance(processInstance.processInstanceId);
+                else
+                    processInstance.archProcessInstance = processAPI.getArchivedProcessInstance(processInstance.processInstanceId);
+            }
         } catch (Exception e) {
             final StringWriter sw = new StringWriter();
             e.printStackTrace(new PrintWriter(sw));

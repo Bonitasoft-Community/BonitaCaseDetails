@@ -1,29 +1,25 @@
-package org.bonitasoft.tools.Process;
+package org.bonitasoft.casedetails;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.logging.Logger;
 
+import org.bonitasoft.casedetails.CaseDetails.CaseDetailProcessVariable;
+import org.bonitasoft.casedetails.CaseDetails.ProcessInstanceDescription;
+import org.bonitasoft.casedetails.CaseDetails.ScopeVariable;
+import org.bonitasoft.casedetails.CaseDetailsAPI.CaseHistoryParameter;
 import org.bonitasoft.engine.api.BusinessDataAPI;
 import org.bonitasoft.engine.api.ProcessAPI;
 import org.bonitasoft.engine.bdm.BusinessObjectDAOFactory;
 import org.bonitasoft.engine.bdm.Entity;
 import org.bonitasoft.engine.bdm.dao.BusinessObjectDAO;
-import org.bonitasoft.engine.bpm.process.ProcessDefinition;
 import org.bonitasoft.engine.business.data.BusinessDataReference;
 import org.bonitasoft.engine.business.data.MultipleBusinessDataReference;
 import org.bonitasoft.engine.business.data.SimpleBusinessDataReference;
 import org.bonitasoft.engine.session.APISession;
 import org.bonitasoft.log.event.BEvent;
 import org.bonitasoft.log.event.BEvent.Level;
-import org.bonitasoft.tools.Process.CaseDetails.CaseDetailProcessVariable;
-import org.bonitasoft.tools.Process.CaseDetails.ProcessInstanceDescription;
-import org.bonitasoft.tools.Process.CaseDetails.ScopeVariable;
-import org.bonitasoft.tools.Process.CaseDetailsAPI.CaseHistoryParameter;
 import org.json.simple.JSONValue;
 
 /* -------------------------------------------------------------------- */
@@ -32,20 +28,26 @@ import org.json.simple.JSONValue;
 /*                                                                      */
 /* -------------------------------------------------------------------- */
 
+@SuppressWarnings("deprecation")
 public class CaseDetailsBDMVariables {
 
-    final static Logger logger = Logger.getLogger(CaseProcessVariables.class.getName());
+    final static Logger logger = Logger.getLogger(CaseDetailsBDMVariables.class.getName());
 
-    private final static BEvent LOAD_BDM_CONTENT_FAILED = new BEvent(CaseDetailsBDMVariables.class.getName(), 1, Level.ERROR, "Load BDM Content failed",
+    private final static BEvent eventLoadBdmContentFailed = new BEvent(CaseDetailsBDMVariables.class.getName(), 1, Level.ERROR, "Load BDM Content failed",
             "Loading the content of a BDM failed",
             "Result will not contains the BDM content",
             "Check exception");
 
-    private final static BEvent LOAD_BDM_FAILED = new BEvent(CaseDetailsBDMVariables.class.getName(), 2, Level.ERROR, "Load BDM variable failed",
+    private final static BEvent eventLoadBdmFailed = new BEvent(CaseDetailsBDMVariables.class.getName(), 2, Level.ERROR, "Load BDM variable failed",
             "Error when BDM is loaded",
             "Result will not contains the BDM",
             "Check exception");
 
+    /**
+     * utility class should privatise the constructors
+     * Default Constructor.
+     */
+    private CaseDetailsBDMVariables() {}
     /**
      * @param caseDetails
      * @param caseHistoryParameter
@@ -53,6 +55,7 @@ public class CaseDetailsBDMVariables {
      * @param businessDataAPI
      * @param apiSession
      */
+    @SuppressWarnings({ })
     protected static void loadVariables(CaseDetails caseDetails, CaseHistoryParameter caseHistoryParameter, ProcessAPI processAPI, BusinessDataAPI businessDataAPI, APISession apiSession) {
 
         if (businessDataAPI==null)
@@ -62,15 +65,13 @@ public class CaseDetailsBDMVariables {
             List<BusinessDataReference> listBdmReference = businessDataAPI.getProcessBusinessDataReferences(processInstanceDescription.processInstanceId, 0, 1000);
             for (BusinessDataReference businessDataReference : listBdmReference) {
 
-                List<Long> listStorageIds = new ArrayList<Long>();
-                Object collectListBdm = null;
-                if (businessDataReference instanceof SimpleBusinessDataReference) {
-                    collectListBdm = null;
+                List<Long> listStorageIds = new ArrayList<>();
+
+                if (businessDataReference instanceof SimpleBusinessDataReference) {                   
                     // if null, add it even to have a result (bdm name + null)
                     listStorageIds.add(((SimpleBusinessDataReference) businessDataReference).getStorageId());
                 } else if (businessDataReference instanceof MultipleBusinessDataReference) {
                     // this is a multiple data
-                    collectListBdm = new ArrayList<Object>();
                     if (((MultipleBusinessDataReference) businessDataReference).getStorageIds() == null)
                         listStorageIds.add(null); // add a null value to have a
                                                   // result (bdm name + null) and
@@ -110,19 +111,18 @@ public class CaseDetailsBDMVariables {
                                 dataBdmEntity = (Entity) m.invoke(dao, storageId);
                                 bdmVariable.value = JSONValue.toJSONString(dataBdmEntity);
                             } catch (Exception e) {
-                                caseDetails.listEvents.add(new BEvent(LOAD_BDM_CONTENT_FAILED, e, "BDMName[" + businessDataReference.getName() + "] StorageId[" + storageId + "]"));
+                                caseDetails.listEvents.add(new BEvent(eventLoadBdmContentFailed, e, "BDMName[" + businessDataReference.getName() + "] StorageId[" + storageId + "]"));
 
                             }
                         }
 
                     }
                 } catch (Exception e) {
-                    caseDetails.listEvents.add(new BEvent(LOAD_BDM_FAILED, e, "BDMName[" + businessDataReference == null ? null : businessDataReference.getName() + "]"));
+                    caseDetails.listEvents.add(new BEvent(eventLoadBdmFailed, e, "BDMName[" + businessDataReference == null ? null : businessDataReference.getName() + "]"));
 
                 }
             } // end loop on all BDM
         } // end loop all processinstance
-        return;
     } // end collect BDM
 
 }

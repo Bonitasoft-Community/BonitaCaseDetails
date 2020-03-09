@@ -1,4 +1,4 @@
-package org.bonitasoft.tools.Process;
+package org.bonitasoft.casedetails;
 
 import java.sql.Clob;
 import java.sql.Connection;
@@ -11,15 +11,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
+import org.bonitasoft.casedetails.CaseDetails.CaseDetailFlowNode;
+import org.bonitasoft.casedetails.CaseDetails.CaseDetailProcessVariable;
+import org.bonitasoft.casedetails.CaseDetails.ProcessInstanceDescription;
+import org.bonitasoft.casedetails.CaseDetailsAPI.CaseHistoryParameter;
 import org.bonitasoft.engine.api.ProcessAPI;
 import org.bonitasoft.engine.bpm.data.DataInstance;
 import org.bonitasoft.engine.bpm.process.ProcessDefinition;
 import org.bonitasoft.log.event.BEvent;
 import org.bonitasoft.log.event.BEvent.Level;
-import org.bonitasoft.tools.Process.CaseDetails.CaseDetailFlowNode;
-import org.bonitasoft.tools.Process.CaseDetails.CaseDetailProcessVariable;
-import org.bonitasoft.tools.Process.CaseDetails.ProcessInstanceDescription;
-import org.bonitasoft.tools.Process.CaseDetailsAPI.CaseHistoryParameter;
 
 /* -------------------------------------------------------------------- */
 /*                                                                      */
@@ -31,18 +31,18 @@ public class CaseProcessVariables {
 
     final static Logger logger = Logger.getLogger(CaseProcessVariables.class.getName());
 
-    private final static BEvent LOAD_ARCHIVED_VARIABLE_FAILED = new BEvent(CaseProcessVariables.class.getName(), 1, Level.ERROR, "Load archived variable failed",
+    private final static BEvent eventLoadArchivedVariableFailed = new BEvent(CaseProcessVariables.class.getName(), 1, Level.ERROR, "Load archived variable failed",
             "The load failed",
             "Result will not contains the archived variable",
             "Check exception");
 
-    private final static BEvent LOAD_VARIABLE_FAILED = new BEvent(CaseProcessVariables.class.getName(), 2, Level.ERROR, "Load variable failed",
+    private final static BEvent eventLoadVariableFailed = new BEvent(CaseProcessVariables.class.getName(), 2, Level.ERROR, "Load variable failed",
             "Error when variables are loaded",
             "Result will not contains variables",
             "Check exception");
 
     protected static void loadVariables(CaseDetails caseDetails, CaseHistoryParameter caseHistoryParameter, ProcessAPI processAPI) {
-        List<Map<String, Object>> listDataInstanceMap = new ArrayList<Map<String, Object>>();
+        List<Map<String, Object>> listDataInstanceMap = new ArrayList<>();
 
         for (ProcessInstanceDescription processInstanceDescription : caseDetails.listProcessInstances) {
             // maybe an archived ID
@@ -65,8 +65,8 @@ public class CaseProcessVariables {
                     listArchivedDataInstances = loadArchivedProcessVariables(caseDetails, listSourceId, processAPI);
                 }
 
-                //completeListDataInstanceMap(listDataInstanceMap, ScopeVariable.PROCESS, null, listDataInstances, processDefinition, processInstanceDescription.id, "");
-                //completeListDataInstanceMap(listDataInstanceMap, ScopeVariable.PROCESS, StatusVariable.ARCHIVED, listArchivedDataInstances, processDefinition, processInstanceDescription.id, "");
+               // completeListDataInstanceMap(listDataInstanceMap, ScopeVariable.PROCESS, null, listDataInstances, processDefinition, processInstanceDescription.id, "");
+               // completeListDataInstanceMap(listDataInstanceMap, ScopeVariable.PROCESS, StatusVariable.ARCHIVED, listArchivedDataInstances, processDefinition, processInstanceDescription.id, "");
 
             } catch (Exception e) {
 
@@ -108,8 +108,8 @@ public class CaseProcessVariables {
 
                 }
             } catch (Exception e) {
-                logger.info("Exception " + e.getMessage());
-                caseDetails.listEvents.add(new BEvent(LOAD_VARIABLE_FAILED, e, "FlowNodeId[" + caseDetailflowNode.getId() + "]"));
+                logger.severe("Exception " + e.getMessage());
+                caseDetails.listEvents.add(new BEvent(eventLoadVariableFailed, e, "FlowNodeId[" + caseDetailflowNode.getId() + "]"));
 
             }
         }
@@ -211,7 +211,7 @@ public class CaseProcessVariables {
             }
 
         } catch (final Exception e) {
-            caseDetails.listEvents.add(new BEvent(LOAD_ARCHIVED_VARIABLE_FAILED, e, "SqlRequest [" + sqlRequest + "]"));
+            caseDetails.listEvents.add(new BEvent(eventLoadArchivedVariableFailed, e, "SqlRequest [" + sqlRequest + "]"));
 
         } finally {
             if (rs != null) {

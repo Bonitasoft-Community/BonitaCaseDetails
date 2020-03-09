@@ -1,4 +1,4 @@
-package org.bonitasoft.tools.Process;
+package org.bonitasoft.casedetails;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -14,15 +14,11 @@ import org.bonitasoft.engine.bpm.document.Document;
 import org.bonitasoft.engine.bpm.flownode.ActivityInstance;
 import org.bonitasoft.engine.bpm.flownode.ArchivedActivityInstance;
 import org.bonitasoft.engine.bpm.flownode.ArchivedFlowNodeInstance;
-import org.bonitasoft.engine.bpm.flownode.CatchEventDefinition;
 import org.bonitasoft.engine.bpm.flownode.CatchMessageEventTriggerDefinition;
 import org.bonitasoft.engine.bpm.flownode.CatchSignalEventTriggerDefinition;
-import org.bonitasoft.engine.bpm.flownode.CorrelationDefinition;
 import org.bonitasoft.engine.bpm.flownode.EventInstance;
 import org.bonitasoft.engine.bpm.flownode.FlowNodeInstance;
-import org.bonitasoft.engine.bpm.flownode.FlowNodeInstanceNotFoundException;
 import org.bonitasoft.engine.bpm.flownode.FlowNodeType;
-import org.bonitasoft.engine.bpm.flownode.HumanTaskInstance;
 import org.bonitasoft.engine.bpm.process.ArchivedProcessInstance;
 import org.bonitasoft.engine.bpm.process.ProcessDefinition;
 import org.bonitasoft.engine.bpm.process.ProcessInstance;
@@ -32,7 +28,7 @@ import org.json.simple.JSONValue;
 
 public class CaseDetails {
 
-    public List<BEvent> listEvents = new ArrayList<BEvent>();
+    public List<BEvent> listEvents = new ArrayList<>();
 
     // List<Long> listProcessInstanceId  = new ArrayList<Long>();
     public long rootCaseId;
@@ -60,6 +56,7 @@ public class CaseDetails {
      */
     public static class ProcessInstanceDescription {
 
+
         ProcessInstance processInstance = null;
         ArchivedProcessInstance archProcessInstance = null;
 
@@ -67,6 +64,13 @@ public class CaseDetails {
          * information are load from the database.
          */
         public long processInstanceId;
+        /**
+         * If the case is created by a user, this is the one
+         */
+        public User  userCreatedBy;
+        /**
+         * CallerId is the ProcessInstanceId who call this processInstance (it's a Parent, but in the Database, name is callerId)
+         */
         public Long callerId;
         public Date startDate;
         public Date endDate;
@@ -74,7 +78,11 @@ public class CaseDetails {
         public ProcessDefinition processDefinition;
         public boolean isActive;
 
-        public List<Map<String, Serializable>> contractInstanciation;
+        /**
+         * User Name who start the case
+         */
+        
+        public Map<String, Serializable> contractInstanciation;
         /*
          * if this processinstance is a subprocess, this is the Parent Activity who call this process
          */
@@ -93,9 +101,9 @@ public class CaseDetails {
     /*                                                                          */
     /* ************************************************************************ */
 
-    public List<CaseDetailFlowNode> listCaseDetailFlowNodes = new ArrayList<CaseDetailFlowNode>();
+    public List<CaseDetailFlowNode> listCaseDetailFlowNodes = new ArrayList<>();
 
-    final Set<Long> listMultiInstanceActivity = new HashSet<Long>();
+    final Set<Long> listMultiInstanceActivity = new HashSet<>();
 
     public CaseDetailFlowNode addFlowNodeDetails() {
         CaseDetailFlowNode flowNode = new CaseDetailFlowNode();
@@ -112,13 +120,13 @@ public class CaseDetails {
 
     public class CaseDetailFlowNode {
 
-        FlowNodeInstance activityInstance; // todo rename flowNodeInstance
-        ArchivedFlowNodeInstance archFlownNodeInstance;
+        public FlowNodeInstance activityInstance; // todo rename flowNodeInstance
+        public ArchivedFlowNodeInstance archFlownNodeInstance;
 
-        User userExecutedBy;
-        Date dateFlowNode = null;
+        public User userExecutedBy;
+        public Date dateFlowNode = null;
 
-        List<Map<String, Serializable>> listContractValues;
+        public Map<String, Serializable> listContractValues;
 
         
        
@@ -166,18 +174,28 @@ public class CaseDetails {
                 return archFlownNodeInstance.getArchiveDate();
             return null;
         }
-        public List<Map<String, Serializable>> getListContractValues() {
+        public Map<String, Serializable> getListContractValues() {
             return listContractValues;
+        }
+        public ArchivedFlowNodeInstance getArchFlownNodeInstance() { 
+            return archFlownNodeInstance;
+    }
+        public FlowNodeInstance getActivityInstance() { 
+            return activityInstance;
+    }
+        public boolean isArchived() {
+            return archFlownNodeInstance!=null;
         }
     }
 
+    
     /* ************************************************************************ */
     /*                                                                          */
     /* Signal Instance */
     /*                                                                          */
     /* ************************************************************************ */
 
-    public List<SignalDetail> listSignals = new ArrayList<SignalDetail>();
+    public List<SignalDetail> listSignals = new ArrayList<>();
 
     public class SignalDetail {
 
@@ -197,14 +215,14 @@ public class CaseDetails {
     /*                                                                          */
     /* ************************************************************************ */
 
-    public List<MessageDetail> listMessages = new ArrayList<MessageDetail>();
+    public List<MessageDetail> listMessages = new ArrayList<>();
 
     public class MessageDetail {
 
         EventInstance eventInstance;
         CatchSignalEventTriggerDefinition signalEvent;
 
-        List<MessageContent> listMessageContent = new ArrayList<MessageContent>();
+        List<MessageContent> listMessageContent = new ArrayList<>();
 
         public MessageContent addMessageContent() {
             MessageContent messageContent = new MessageContent();
@@ -231,7 +249,7 @@ public class CaseDetails {
     /*                                                                          */
     /* ************************************************************************ */
 
-    public List<TimerDetail> listTimers = new ArrayList<TimerDetail>();
+    public List<TimerDetail> listTimers = new ArrayList<>();
 
     public class TimerDetail {
 
@@ -255,11 +273,11 @@ public class CaseDetails {
     /*                                                                          */
     /* ************************************************************************ */
 
-    public List<CaseDetailProcessVariable> listVariables = new ArrayList<CaseDetailProcessVariable>();
+    public List<CaseDetailProcessVariable> listVariables = new ArrayList<>();
 
     public enum ScopeVariable {
         BDM, PROCESS, LOCAL
-    };
+    }
 
     public class CaseDetailProcessVariable {
 
@@ -284,9 +302,9 @@ public class CaseDetails {
                 return null;
             if (value instanceof Long || value instanceof Double || value instanceof Float || value instanceof Integer)
                 return value;
-            Object valueJson = new JSONValue().toJSONString(value);
+            Object valueJson = JSONValue.toJSONString(value);
             // last controle...
-            if (valueJson == "" && value != null)
+            if (valueJson == "")
                 return value;
             return valueJson;
         }
@@ -305,7 +323,7 @@ public class CaseDetails {
     /*                                                                          */
     /* ************************************************************************ */
 
-    List<CaseDetailDocument> listDocuments = new ArrayList<CaseDetailDocument>();
+    List<CaseDetailDocument> listDocuments = new ArrayList<>();
 
     public class CaseDetailDocument {
 

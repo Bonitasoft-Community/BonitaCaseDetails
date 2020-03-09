@@ -1,11 +1,15 @@
-package org.bonitasoft.tools.Process;
+package org.bonitasoft.casedetails;
 
 import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Logger;
 
+import org.bonitasoft.casedetails.CaseDetails.CaseDetailFlowNode;
+import org.bonitasoft.casedetails.CaseDetails.ProcessInstanceDescription;
+import org.bonitasoft.casedetails.CaseDetailsAPI.CaseHistoryParameter;
 import org.bonitasoft.engine.api.IdentityAPI;
 import org.bonitasoft.engine.api.ProcessAPI;
+import org.bonitasoft.engine.bpm.flownode.ActivityStates;
 import org.bonitasoft.engine.bpm.flownode.ArchivedFlowNodeInstance;
 import org.bonitasoft.engine.bpm.flownode.ArchivedFlowNodeInstanceSearchDescriptor;
 import org.bonitasoft.engine.bpm.flownode.ArchivedHumanTaskInstance;
@@ -20,10 +24,6 @@ import org.bonitasoft.engine.search.SearchResult;
 import org.bonitasoft.log.event.BEvent;
 import org.bonitasoft.log.event.BEvent.Level;
 
-import org.bonitasoft.tools.Process.CaseDetails.CaseDetailFlowNode;
-import org.bonitasoft.tools.Process.CaseDetails.ProcessInstanceDescription;
-import org.bonitasoft.tools.Process.CaseDetailsAPI.CaseHistoryParameter;
-
 /* -------------------------------------------------------------------- */
 /*                                                                      */
 /* Activities manipulation */
@@ -32,18 +32,25 @@ import org.bonitasoft.tools.Process.CaseDetailsAPI.CaseHistoryParameter;
 
 public class CaseActivities {
 
-    final static Logger logger = Logger.getLogger(CaseContract.class.getName());
+    final static Logger logger = Logger.getLogger(CaseActivities.class.getName());
 
-    private final static BEvent CONTRACT_TASK_FAILED = new BEvent(CaseActivities.class.getName(), 1, Level.ERROR, "Can't load Task Contract", "The call to retrieve contract on an archived human task failed",
+  
+    private final static BEvent eventContractTasksFailed = new BEvent(CaseActivities.class.getName(), 1, Level.ERROR, "Can't load Task Contract", "The call to retrieve contract on an archived human task failed",
             "result will not contains the contract on that task",
-            "Check exception ");
+            "Check exception");
 
-    private final static BEvent SEARCH_TASK_FAILED = new BEvent(CaseActivities.class.getName(), 2, Level.ERROR, "Search task failed", "The call to search tasks failed",
+    private final static BEvent eventSearchTaskFailed = new BEvent(CaseActivities.class.getName(), 2, Level.ERROR, "Search task failed", "The call to search tasks failed",
             "result will not contains tasks",
             "Check exception ");
-    private final static BEvent SEARCH_ARCHIVEDTASK_FAILED = new BEvent(CaseActivities.class.getName(), 1, Level.ERROR, "Can't load ArchivedTask Contract", "The call to search archived tasks failed",
+    private final static BEvent eventSearchArchivedTasksFailed = new BEvent(CaseActivities.class.getName(), 1, Level.ERROR, "Can't load ArchivedTask Contract", "The call to search archived tasks failed",
             "result will not contains archived tasks",
             "Check exception ");
+
+    /**
+     * this is a utility class
+     * Default Constructor.
+     */
+    private CaseActivities() {};
 
     protected static void loadActivities(CaseDetails caseDetails, CaseHistoryParameter caseHistoryParameter, ProcessAPI processAPI, IdentityAPI identityAPI) {
 
@@ -84,7 +91,7 @@ public class CaseActivities {
                     flowNodeDetail.dateFlowNode = null;
                 }
 
-                logger.info("##### FLOWNODE Activity[" + activityInstance.getName() + "] Class["
+                logger.fine("##### FLOWNODE Activity[" + activityInstance.getName() + "] Class["
                         + activityInstance.getClass().getName() + "]");
 
                 if ("MULTI_INSTANCE_ACTIVITY".equals(activityInstance.getType().toString())) {
@@ -108,16 +115,16 @@ public class CaseActivities {
 
             }
         } catch (SearchException e1) {
-            caseDetails.listEvents.add(new BEvent(SEARCH_TASK_FAILED, e1, "During search on caseId [" + caseDetails.rootCaseId + "]"));
+            caseDetails.listEvents.add(new BEvent(eventSearchTaskFailed, e1, "During search on caseId [" + caseDetails.rootCaseId + "]"));
 
         }
 
-        logger.info("#### casehistory on processInstanceId[" + caseDetails.rootCaseId + "] : found ["
+        logger.fine("#### casehistory on processInstanceId[" + caseDetails.rootCaseId + "] : found ["
                 + caseDetails.listCaseDetailFlowNodes.size() + "] activity");
 
         // ------------------- archived   
         // Attention, same activity will be returned multiple time and search based on ROOT process instance does not works
-        Set<Long> setActivitiesRetrieved = new HashSet<Long>();
+        Set<Long> setActivitiesRetrieved = new HashSet<>();
         for (ProcessInstanceDescription processInstance : caseDetails.listProcessInstances) {
 
             searchOptionsBuilder = new SearchOptionsBuilder(0, 1000);
@@ -151,15 +158,15 @@ public class CaseActivities {
                         } ;
                     }
                     // only on archived READY state
-                    if (caseHistoryParameter.loadContract && flownNodeInstance instanceof ArchivedHumanTaskInstance && ("ready".equalsIgnoreCase(flownNodeInstance.getState().toString())))
+                    if (caseHistoryParameter.loadContract && flownNodeInstance instanceof ArchivedHumanTaskInstance && (ActivityStates.READY_STATE.equalsIgnoreCase(flownNodeInstance.getState())))
                         try {
                             flowNodeDetail.listContractValues = CaseContract.getContractTaskValues(caseDetails, caseHistoryParameter, (ArchivedHumanTaskInstance) flownNodeInstance, processAPI);
                         } catch (Exception e) {
-                            caseDetails.listEvents.add(new BEvent(CONTRACT_TASK_FAILED, e, "During activity [" + flownNodeInstance.getId() + "]"));
+                            caseDetails.listEvents.add(new BEvent(eventContractTasksFailed, e, "During activity [" + flownNodeInstance.getId() + "]"));
                         }
                 }
             } catch (SearchException e1) {
-                caseDetails.listEvents.add(new BEvent(SEARCH_ARCHIVEDTASK_FAILED, e1, "During search on caseId [" + processInstance.processInstanceId + "]"));
+                caseDetails.listEvents.add(new BEvent(eventSearchArchivedTasksFailed, e1, "During search on caseId [" + processInstance.processInstanceId + "]"));
 
             }
         } // end loop processinstance
