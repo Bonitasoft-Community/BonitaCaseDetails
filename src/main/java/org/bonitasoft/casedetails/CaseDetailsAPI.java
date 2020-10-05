@@ -3,11 +3,14 @@ package org.bonitasoft.casedetails;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Logger;
 
 import org.bonitasoft.engine.api.BusinessDataAPI;
 import org.bonitasoft.engine.api.IdentityAPI;
 import org.bonitasoft.engine.api.ProcessAPI;
+import org.bonitasoft.engine.bpm.process.ProcessDefinition;
+import org.bonitasoft.engine.bpm.process.ProcessDefinitionNotFoundException;
 import org.bonitasoft.engine.session.APISession;
 import org.bonitasoft.log.event.BEvent;
 import org.bonitasoft.log.event.BEvent.Level;
@@ -43,16 +46,27 @@ public class CaseDetailsAPI {
      */
     public static class CaseHistoryParameter {
 
+        /**
+         * Please provide the tenant Id to be consistent
+         */
+        public Long tenantId;
         public Long caseId;
         public boolean loadSubProcess = true;
         public boolean loadContract = true;
-        public boolean loadArchivedData = true;
+        
         public boolean loadBdmVariables = true;
         public boolean loadContentBdmVariables = true;
+
+        /** Process and local variable */
+        public boolean loadProcessVariables = true;
+        public boolean loadArchivedProcessVariable = true;
+        public boolean loadArchivedHistoryProcessVariable = true;
+        
         public boolean loadActivities = true;
+        public boolean loadArchivedActivities = true;
+        
         public boolean loadEvents = true;
         public boolean loadTimers = true;
-        public boolean loadProcessVariables = true;
         public boolean loadDocuments = true;
 
         public boolean contractInJsonFormat = false;
@@ -79,8 +93,9 @@ public class CaseDetailsAPI {
             caseHistoryParameter.searchIndex5 = CaseDetailsToolbox.jsonToString(jsonHash.get("search5"), "");
             caseHistoryParameter.loadSubProcess = CaseDetailsToolbox.jsonToBoolean(jsonHash.get("showSubProcess"), false);
             caseHistoryParameter.loadBdmVariables = CaseDetailsToolbox.jsonToBoolean(jsonHash.get("loadBdmVariables"), false);
-            caseHistoryParameter.loadArchivedData = CaseDetailsToolbox.jsonToBoolean(jsonHash.get("showArchivedData"),
-                    false);
+            // map the history and the archive on the same
+            caseHistoryParameter.loadArchivedProcessVariable = CaseDetailsToolbox.jsonToBoolean(jsonHash.get("showArchivedData"), false);
+            caseHistoryParameter.loadArchivedHistoryProcessVariable = CaseDetailsToolbox.jsonToBoolean(jsonHash.get("showArchivedData"), false);
             return caseHistoryParameter;
         }
 
@@ -100,8 +115,8 @@ public class CaseDetailsAPI {
         // Activities
         logger.info(LOGGER_LABEL+"############### start caseDetail v1.0 on [" + caseHistoryParameter.caseId + "] ShowSubProcess["
                 + caseHistoryParameter.loadSubProcess + "]");
-
-        CaseDetails caseDetails = new CaseDetails(caseHistoryParameter.caseId);
+        
+        CaseDetails caseDetails = new CaseDetails(caseHistoryParameter.tenantId, caseHistoryParameter.caseId, this);
         try {
 
             if (caseHistoryParameter.caseId == null) {
@@ -148,5 +163,33 @@ public class CaseDetailsAPI {
         }
         return caseDetails;
     }
-
+    /* ******************************************************************************** */
+    /*                                                                                  */
+    /*  CaseAPI need to access multiple time to a ProcessDefinitionId                   */
+    /*                                                                                  */
+    /* Cache used is accessible, then caller can use it too.                            */
+    /*                                                                                  */
+    /*                                                                                  */
+    /* ******************************************************************************** */
+    private Map<Long,ProcessDefinition> cacheProcessDefinition = new HashMap<>(); 
+    public ProcessDefinition getProcessDefinition( long processDefinitionId, ProcessAPI processAPI ) throws ProcessDefinitionNotFoundException {
+        ProcessDefinition processDefinition = cacheProcessDefinition.get( processDefinitionId);
+        if (processDefinition!=null)
+            return processDefinition;
+         processDefinition = processAPI.getProcessDefinition(processDefinitionId);
+        cacheProcessDefinition.put( processDefinitionId, processDefinition);
+        return processDefinition;
+        
+        
+    }
+    
+    public Map<Long,ProcessDefinition> getCacheProcessDefinition() {
+        return cacheProcessDefinition;
+    }
+    public void clearCache() {
+        cacheProcessDefinition.clear();
+    }
+    
+    
+    
 }

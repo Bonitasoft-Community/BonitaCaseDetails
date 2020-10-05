@@ -44,7 +44,7 @@ public class CaseTimers {
 
                 if (searchTimer.getResult() != null)
                     for (TimerEventTriggerInstance triggerInstance : searchTimer.getResult()) {
-                        TimerDetail timerDetails = caseDetails.addTimerDetail();
+                        TimerDetail timerDetails = caseDetails.createInstanceTimerDetail();
 
                         timerDetails.jobIsStillSchedule = true;
                         timerDetails.triggerId = triggerInstance.getId();

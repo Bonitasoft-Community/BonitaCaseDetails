@@ -9,16 +9,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+
+import org.bonitasoft.engine.bpm.actor.ActorInstance;
+import org.bonitasoft.engine.bpm.connector.ConnectorInstance;
+import org.bonitasoft.engine.bpm.data.ArchivedDataInstance;
 import org.bonitasoft.engine.bpm.data.DataInstance;
 import org.bonitasoft.engine.bpm.document.Document;
 import org.bonitasoft.engine.bpm.flownode.ActivityInstance;
 import org.bonitasoft.engine.bpm.flownode.ArchivedActivityInstance;
 import org.bonitasoft.engine.bpm.flownode.ArchivedFlowNodeInstance;
+import org.bonitasoft.engine.bpm.flownode.ArchivedLoopActivityInstance;
+import org.bonitasoft.engine.bpm.flownode.ArchivedMultiInstanceActivityInstance;
 import org.bonitasoft.engine.bpm.flownode.CatchMessageEventTriggerDefinition;
 import org.bonitasoft.engine.bpm.flownode.CatchSignalEventTriggerDefinition;
 import org.bonitasoft.engine.bpm.flownode.EventInstance;
 import org.bonitasoft.engine.bpm.flownode.FlowNodeInstance;
 import org.bonitasoft.engine.bpm.flownode.FlowNodeType;
+import org.bonitasoft.engine.bpm.flownode.GatewayInstance;
+import org.bonitasoft.engine.bpm.flownode.LoopActivityInstance;
+import org.bonitasoft.engine.bpm.flownode.MultiInstanceActivityInstance;
 import org.bonitasoft.engine.bpm.process.ArchivedProcessInstance;
 import org.bonitasoft.engine.bpm.process.ProcessDefinition;
 import org.bonitasoft.engine.bpm.process.ProcessInstance;
@@ -30,11 +39,20 @@ public class CaseDetails {
 
     public List<BEvent> listEvents = new ArrayList<>();
 
+    public Long tenantId;
     // List<Long> listProcessInstanceId  = new ArrayList<Long>();
     public long rootCaseId;
 
-    public CaseDetails(long rootCaseId) {
+    private CaseDetailsAPI caseDetailAPI;
+
+    protected CaseDetails(Long tenantId, long rootCaseId, CaseDetailsAPI caseDetailAPI) {
+        this.tenantId = tenantId;
         this.rootCaseId = rootCaseId;
+        this.caseDetailAPI = caseDetailAPI;
+    }
+
+    public CaseDetailsAPI getCaseDetailsAPI() {
+        return caseDetailAPI;
     }
 
     /* ************************************************************************ */
@@ -43,7 +61,7 @@ public class CaseDetails {
     /*                                                                          */
     /* ************************************************************************ */
 
-    public List<ProcessInstanceDescription> listProcessInstances = new ArrayList<ProcessInstanceDescription>();
+    public List<ProcessInstanceDescription> listProcessInstances = new ArrayList<>();
 
     /**
      * Container for the processInstanceList
@@ -56,24 +74,31 @@ public class CaseDetails {
      */
     public static class ProcessInstanceDescription {
 
+        public ProcessInstance processInstance = null;
+        public ArchivedProcessInstance archProcessInstance = null;
 
-        ProcessInstance processInstance = null;
-        ArchivedProcessInstance archProcessInstance = null;
-
+        public Long tenantId;
         /**
          * information are load from the database.
          */
         public long processInstanceId;
+
+        public Long rootProcessInstanceId;
+
+        /**
+         * in case of a ArchiveProcessInstance, the Internal ID. This information is mandatory to call the getArchivedProcessInstance method
+         */
+        public Long archivedProcessInstanceId = null;
         /**
          * If the case is created by a user, this is the one
          */
-        public User  userCreatedBy;
+        public User userCreatedBy;
         /**
          * CallerId is the ProcessInstanceId who call this processInstance (it's a Parent, but in the Database, name is callerId)
          */
         public Long callerId;
-        public Date startDate;
-        public Date endDate;
+        public Date startDate = null;
+        public Date endDate = null;
         public Long processDefinitionId;
         public ProcessDefinition processDefinition;
         public boolean isActive;
@@ -81,12 +106,13 @@ public class CaseDetails {
         /**
          * User Name who start the case
          */
-        
+
         public Map<String, Serializable> contractInstanciation;
         /*
          * if this processinstance is a subprocess, this is the Parent Activity who call this process
          */
         public Long parentProcessInstanceId;
+
         public ActivityInstance parentActivity;
         public ArchivedActivityInstance archiveParentActivity;
         public String parentActivityName;
@@ -105,7 +131,11 @@ public class CaseDetails {
 
     final Set<Long> listMultiInstanceActivity = new HashSet<>();
 
-    public CaseDetailFlowNode addFlowNodeDetails() {
+    /**
+     * Create an register the instance
+     * @return
+     */
+    public CaseDetailFlowNode createInstanceFlowNodeDetails() {
         CaseDetailFlowNode flowNode = new CaseDetailFlowNode();
         listCaseDetailFlowNodes.add(flowNode);
         return flowNode;
@@ -120,7 +150,7 @@ public class CaseDetails {
 
     public class CaseDetailFlowNode {
 
-        public FlowNodeInstance activityInstance; // todo rename flowNodeInstance
+        public FlowNodeInstance activityInstance;
         public ArchivedFlowNodeInstance archFlownNodeInstance;
 
         public User userExecutedBy;
@@ -128,11 +158,25 @@ public class CaseDetails {
 
         public Map<String, Serializable> listContractValues;
 
-        
-       
+        /**
+         * In case of a Human Tasks
+         */
+        public ActorInstance actor;
+        public long nbCandidates;
+        public long assigneeId;
+        public User assigneeUser;
+
+        /**
+         * when the case is failed, then the list of connector can be loaded
+         */
+        public List<ConnectorInstance> connectors;
 
         public String getName() {
             return activityInstance != null ? activityInstance.getName() : archFlownNodeInstance.getName();
+        }
+
+        public String getDisplayName() {
+            return activityInstance != null ? activityInstance.getDisplayName() : archFlownNodeInstance.getDisplayName();
         }
 
         public Long getId() {
@@ -159,6 +203,24 @@ public class CaseDetails {
             return activityInstance != null ? activityInstance.getFlownodeDefinitionId() : archFlownNodeInstance.getFlownodeDefinitionId();
         }
 
+     
+        /**
+         * This information is use to link all task together, archive and current. They share the same ID.
+         * @return
+         */
+        public Long getSourceObjectId() {
+            return activityInstance != null ? activityInstance.getId() : archFlownNodeInstance.getSourceObjectId();
+
+        }
+        
+        /**
+         * To get the processInstanceId, it's mandatory to parse all flownode.
+         * When the flownode is part of a ITERATION, then the parentContainterId is the TaskId, not the processInstanceId
+         * @return
+         */
+        public Long getProcessInstanceId( ) {
+            return activityInstance != null ? activityInstance.getParentProcessInstanceId() : archFlownNodeInstance.getProcessInstanceId();
+        }
         public Long getParentContainerId() {
             return activityInstance != null ? activityInstance.getParentContainerId() : archFlownNodeInstance.getParentContainerId();
         }
@@ -166,7 +228,42 @@ public class CaseDetails {
         public Long getRootContainerId() {
             return activityInstance != null ? activityInstance.getRootContainerId() : archFlownNodeInstance.getRootContainerId();
         }
-        
+
+        public Date getReachedStateDate() {
+            return activityInstance != null ? activityInstance.getReachedStateDate() : archFlownNodeInstance.getReachedStateDate();
+        }
+
+        public FlowNodeType getFlowNodeType() {
+            return activityInstance != null ? activityInstance.getType() : archFlownNodeInstance.getType();
+        }
+
+        public Long getExecutedBy() {
+            return activityInstance != null ? activityInstance.getExecutedBy() : archFlownNodeInstance.getExecutedBy();
+        }
+
+        public Long getExecutedBySubstitute() {
+            return activityInstance != null ? activityInstance.getExecutedBySubstitute() : archFlownNodeInstance.getExecutedBySubstitute();
+        }
+
+        public Integer getLoopCounter() {
+            if (activityInstance instanceof LoopActivityInstance)
+                return ((LoopActivityInstance) activityInstance).getLoopCounter();
+
+            if (archFlownNodeInstance instanceof ArchivedLoopActivityInstance) {
+                return ((ArchivedLoopActivityInstance) archFlownNodeInstance).getLoopCounter();
+            }
+            return null;
+        }
+        public Integer getNumberOfInstances() {
+            if (activityInstance instanceof MultiInstanceActivityInstance) {
+                return ((MultiInstanceActivityInstance) archFlownNodeInstance).getNumberOfInstances();
+            }
+            if (archFlownNodeInstance instanceof ArchivedMultiInstanceActivityInstance) {
+                return ((ArchivedMultiInstanceActivityInstance) archFlownNodeInstance).getNumberOfInstances();
+            }
+            return null;
+        }
+
         public Date getDate() {
             if (activityInstance != null)
                 return activityInstance.getLastUpdateDate();
@@ -174,21 +271,24 @@ public class CaseDetails {
                 return archFlownNodeInstance.getArchiveDate();
             return null;
         }
+
         public Map<String, Serializable> getListContractValues() {
             return listContractValues;
         }
-        public ArchivedFlowNodeInstance getArchFlownNodeInstance() { 
+
+        public ArchivedFlowNodeInstance getArchFlownNodeInstance() {
             return archFlownNodeInstance;
-    }
-        public FlowNodeInstance getActivityInstance() { 
+        }
+
+        public FlowNodeInstance getActivityInstance() {
             return activityInstance;
-    }
+        }
+
         public boolean isArchived() {
-            return archFlownNodeInstance!=null;
+            return archFlownNodeInstance != null;
         }
     }
 
-    
     /* ************************************************************************ */
     /*                                                                          */
     /* Signal Instance */
@@ -203,7 +303,11 @@ public class CaseDetails {
         List<CatchSignalEventTriggerDefinition> listSignalEvent;
     }
 
-    public SignalDetail addSignal() {
+    /**
+     * Create an register the instance
+     * @return
+     */
+    public SignalDetail createInstanceSignal() {
         SignalDetail signalDetail = new SignalDetail();
         listSignals.add(signalDetail);
         return signalDetail;
@@ -224,14 +328,22 @@ public class CaseDetails {
 
         List<MessageContent> listMessageContent = new ArrayList<>();
 
-        public MessageContent addMessageContent() {
+        /**
+         * Create an register the instance
+         * @return
+         */
+        public MessageContent createInstanceMessageContent() {
             MessageContent messageContent = new MessageContent();
             listMessageContent.add(messageContent);
             return messageContent;
         }
     }
 
-    public MessageDetail addMessageDetail() {
+    /**
+     * Create an register the instance
+     * @return
+     */
+    public MessageDetail createInstanceMessageDetail() {
         MessageDetail messageDetail = new MessageDetail();
         listMessages.add(messageDetail);
         return messageDetail;
@@ -240,7 +352,7 @@ public class CaseDetails {
     public class MessageContent {
 
         CatchMessageEventTriggerDefinition messageEvent;
-        Map<String, Object> mapCorrelationValues = new HashMap<String, Object>();
+        Map<String, Object> mapCorrelationValues = new HashMap<>();
     }
 
     /* ************************************************************************ */
@@ -261,7 +373,11 @@ public class CaseDetails {
 
     }
 
-    public TimerDetail addTimerDetail() {
+    /**
+     * Create an register the instance
+     * @return
+     */
+    public TimerDetail createInstanceTimerDetail() {
         TimerDetail timerDetail = new TimerDetail();
         listTimers.add(timerDetail);
         return timerDetail;
@@ -273,29 +389,45 @@ public class CaseDetails {
     /*                                                                          */
     /* ************************************************************************ */
 
-    public List<CaseDetailProcessVariable> listVariables = new ArrayList<>();
+    public List<CaseDetailVariable> listVariables = new ArrayList<>();
 
     public enum ScopeVariable {
         BDM, PROCESS, LOCAL
     }
 
-    public class CaseDetailProcessVariable {
+    /**
+     * A caseDetailVariable is a Process or a BDM variable (they are all variables isn't?)
+     * 
+     * @author Firstname Lastname
+     */
+    public class CaseDetailVariable {
 
-        boolean isArchived = false;
+        public boolean isArchived = false;
+        public Long id;
+        public String name;
+        public String description;
+        public Date dateArchived;
+        public Long processInstanceId;
+        public Long activityId;
+        public Long sourceId;
+        public String typeVariable;
 
-        String name;
-        String description;
-        Date dateArchived;
-        Long containerId;
-        Long sourceId;
-        String typeVariable;
+        public String contextInfo;
+        // for a Process Variable
+        public Serializable value;
 
-        String contextInfo;
-        Object value;
+        // for a BDM
+        public String bdmName;
+        public boolean bdmIsMultiple;
+        public List<Long> listPersistenceId = new ArrayList<>();
 
-        ScopeVariable scopeVariable;
+        public ScopeVariable scopeVariable;
 
-        DataInstance dataInstance;
+        /**
+         * If data are loaded from the Database, both of this value will be null then.
+         */
+        public DataInstance dataInstance = null;
+        public ArchivedDataInstance archivedDataInstance = null;
 
         public Object getValueToDisplay() {
             if (value == null)
@@ -309,12 +441,31 @@ public class CaseDetails {
             return valueJson;
         }
 
+        public String toString() {
+            return name+" "+scopeVariable+" "+getValueToDisplay() +" PID["+processInstanceId+ (scopeVariable==ScopeVariable.LOCAL ? "] Activity["+activityId:"") +"]";
+        };
     }
 
-    public CaseDetailProcessVariable addProcessVariableDetail() {
-        CaseDetailProcessVariable processVariable = new CaseDetailProcessVariable();
+    /**
+     * Create an register the instance
+     * @return
+     */
+    public CaseDetailVariable createInstanceProcessVariableDetail() {
+        CaseDetailVariable processVariable = new CaseDetailVariable();
         listVariables.add(processVariable);
         return processVariable;
+    }
+
+    public CaseDetailVariable getProcessVariable(String processVariableName) {
+        for (CaseDetailVariable processVariable : listVariables) {
+            if (processVariable.name.equalsIgnoreCase(processVariableName))
+                return processVariable;
+        }
+        return null;
+    }
+
+    public void addProcessVariableDetails(List<CaseDetailVariable> listToAdd) {
+        listVariables.addAll(listToAdd);
     }
 
     /* ************************************************************************ */
@@ -323,15 +474,19 @@ public class CaseDetails {
     /*                                                                          */
     /* ************************************************************************ */
 
-    List<CaseDetailDocument> listDocuments = new ArrayList<>();
+    public List<CaseDetailDocument> listDocuments = new ArrayList<>();
 
     public class CaseDetailDocument {
 
-        public long processInstanceid;
+        public long processInstanceId;
         public Document document;
     }
 
-    public CaseDetailDocument addCaseDetailDocument() {
+    /**
+     * Create an register the instance
+     * @return
+     */
+    public CaseDetailDocument createInstanceCaseDetailDocument() {
         CaseDetailDocument documentVariable = new CaseDetailDocument();
         listDocuments.add(documentVariable);
         return documentVariable;

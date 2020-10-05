@@ -57,7 +57,7 @@ public class CaseEvents {
                 CaseDetailFlowNode flowNodeDetail = caseDetails.getFlowNodeById(eventInstance.getId());
 
                 if (flowNodeDetail == null) {
-                    flowNodeDetail = caseDetails.addFlowNodeDetails();
+                    flowNodeDetail = caseDetails.createInstanceFlowNodeDetails();
                     flowNodeDetail.activityInstance = eventInstance;
                     // mapActivity.put(cstPerimeter, "ARCHIVED");
                 }
@@ -76,16 +76,16 @@ public class CaseEvents {
                     if (flowNodeDefinition instanceof CatchEventDefinition) {
                         CatchEventDefinition catchEventDefinition = (CatchEventDefinition) flowNodeDefinition;
                         if (catchEventDefinition.getSignalEventTriggerDefinitions() != null) {
-                            SignalDetail signalDetail = caseDetails.addSignal();
+                            SignalDetail signalDetail = caseDetails.createInstanceSignal();
                             signalDetail.eventInstance = eventInstance;
                             signalDetail.listSignalEvent = catchEventDefinition.getSignalEventTriggerDefinitions();
 
                         } // end signal detection
                         if (catchEventDefinition.getMessageEventTriggerDefinitions() != null) {
-                            MessageDetail messageDetail = caseDetails.addMessageDetail();
+                            MessageDetail messageDetail = caseDetails.createInstanceMessageDetail();
                             messageDetail.eventInstance = eventInstance;
                             for (CatchMessageEventTriggerDefinition msgTrigger : catchEventDefinition.getMessageEventTriggerDefinitions()) {
-                                MessageContent msgDetailContent = messageDetail.addMessageContent();
+                                MessageContent msgDetailContent = messageDetail.createInstanceMessageContent();
                                 msgDetailContent.messageEvent = msgTrigger;
 
                                 List<String> listCorrelationValue = getCorrelationValue(eventInstance);

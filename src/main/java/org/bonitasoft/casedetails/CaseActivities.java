@@ -1,6 +1,11 @@
 package org.bonitasoft.casedetails;
 
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.logging.Logger;
 
@@ -9,6 +14,9 @@ import org.bonitasoft.casedetails.CaseDetails.ProcessInstanceDescription;
 import org.bonitasoft.casedetails.CaseDetailsAPI.CaseHistoryParameter;
 import org.bonitasoft.engine.api.IdentityAPI;
 import org.bonitasoft.engine.api.ProcessAPI;
+import org.bonitasoft.engine.bpm.actor.ActorInstance;
+import org.bonitasoft.engine.bpm.connector.ConnectorInstance;
+import org.bonitasoft.engine.bpm.connector.ConnectorInstancesSearchDescriptor;
 import org.bonitasoft.engine.bpm.flownode.ActivityStates;
 import org.bonitasoft.engine.bpm.flownode.ArchivedFlowNodeInstance;
 import org.bonitasoft.engine.bpm.flownode.ArchivedFlowNodeInstanceSearchDescriptor;
@@ -18,7 +26,9 @@ import org.bonitasoft.engine.bpm.flownode.FlowNodeInstanceSearchDescriptor;
 import org.bonitasoft.engine.bpm.flownode.GatewayInstance;
 import org.bonitasoft.engine.bpm.flownode.HumanTaskInstance;
 import org.bonitasoft.engine.exception.SearchException;
+import org.bonitasoft.engine.identity.User;
 import org.bonitasoft.engine.identity.UserNotFoundException;
+import org.bonitasoft.engine.search.Order;
 import org.bonitasoft.engine.search.SearchOptionsBuilder;
 import org.bonitasoft.engine.search.SearchResult;
 import org.bonitasoft.log.event.BEvent;
@@ -74,7 +84,8 @@ public class CaseActivities {
             searchOptionsBuilder.filter(FlowNodeInstanceSearchDescriptor.PARENT_PROCESS_INSTANCE_ID,
                     caseDetails.rootCaseId);
         }
-
+        searchOptionsBuilder.sort(FlowNodeInstanceSearchDescriptor.LAST_UPDATE_DATE, Order.ASC);
+        
         // SearchResult<ActivityInstance> searchActivity =
         // processAPI.searchActivities(searchOptionsBuilder.done());
         try {
@@ -82,10 +93,36 @@ public class CaseActivities {
             final SearchResult<FlowNodeInstance> searchFlowNode = processAPI.searchFlowNodeInstances(searchOptionsBuilder.done());
 
             for (final FlowNodeInstance activityInstance : searchFlowNode.getResult()) {
-                CaseDetailFlowNode flowNodeDetail = caseDetails.addFlowNodeDetails();
+                CaseDetailFlowNode flowNodeDetail = caseDetails.createInstanceFlowNodeDetails();
                 flowNodeDetail.activityInstance = activityInstance;
 
                 flowNodeDetail.dateFlowNode = activityInstance.getLastUpdateDate();
+                // Human task
+                if (activityInstance instanceof HumanTaskInstance) {
+                    HumanTaskInstance humanTaskInstance = (HumanTaskInstance) activityInstance;
+                    
+                    Long actorId = humanTaskInstance.getActorId();
+                    if (actorId!=null)
+                    {
+                        try {
+                            flowNodeDetail.actor = processAPI.getActor(actorId);
+                        }
+                        catch(Exception e) {};
+                        SearchResult<User> searchCandidates = processAPI.searchUsersWhoCanExecutePendingHumanTask(humanTaskInstance.getId(), new SearchOptionsBuilder(0,10000).done());
+                        flowNodeDetail.nbCandidates= searchCandidates.getCount();
+                        
+                    }
+                    flowNodeDetail.assigneeId = humanTaskInstance.getAssigneeId();
+                    if (flowNodeDetail.assigneeId > 0) {
+                        try {
+                            flowNodeDetail.assigneeUser = identityAPI.getUser(flowNodeDetail.assigneeId);
+                        } catch (Exception e) {
+                        }
+
+                    }
+                }
+                    
+                    
                 if (activityInstance instanceof GatewayInstance) {
                     // an active gatewaty does not have any date...
                     flowNodeDetail.dateFlowNode = null;
@@ -102,16 +139,26 @@ public class CaseActivities {
                     try {
                         flowNodeDetail.userExecutedBy = identityAPI.getUser(activityInstance.getExecutedBy());
                     } catch (final UserNotFoundException ue) {
-                    } ;
-
+                    }
                 }
-                if (caseHistoryParameter.loadContract && activityInstance instanceof HumanTaskInstance)
+                
+                if (caseHistoryParameter.loadContract && activityInstance instanceof HumanTaskInstance) {
                     try {
                         // by definition, a human task is READY and does not be executed, so no Contract value
                         // mapActivity.put("contract", getContractValues(null, null, (HumanTaskInstance) activityInstance, null, processAPI));
                     } catch (Exception e) {
                         // caseDetails.errorMessage="Error during get case history " + e.toString();
                     }
+                }
+                
+                if (activityInstance.getState().equals( ActivityStates.FAILED_STATE)) {
+                    // search and load connectors
+                    SearchOptionsBuilder sobConnector = new SearchOptionsBuilder(0,100);
+                    sobConnector.filter( ConnectorInstancesSearchDescriptor.CONTAINER_ID, activityInstance.getId());
+                    sobConnector.sort(ConnectorInstancesSearchDescriptor.EXECUTION_ORDER,Order.ASC);
+                    SearchResult<ConnectorInstance> searchConnectors = processAPI.searchConnectorInstances( sobConnector.done());
+                    flowNodeDetail.connectors = searchConnectors.getResult();
+                }
 
             }
         } catch (SearchException e1) {
@@ -147,7 +194,7 @@ public class CaseActivities {
                     if (setActivitiesRetrieved.contains(flownNodeInstance.getId()))
                         continue;
 
-                    CaseDetailFlowNode flowNodeDetail = caseDetails.addFlowNodeDetails();
+                    CaseDetailFlowNode flowNodeDetail = caseDetails.createInstanceFlowNodeDetails();
                     flowNodeDetail.archFlownNodeInstance = flownNodeInstance;
 
                     setActivitiesRetrieved.add(flownNodeInstance.getId());

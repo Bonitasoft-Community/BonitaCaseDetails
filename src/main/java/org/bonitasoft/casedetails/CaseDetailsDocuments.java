@@ -1,6 +1,9 @@
 package org.bonitasoft.casedetails;
 
+import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
 import org.bonitasoft.casedetails.CaseDetails.CaseDetailDocument;
@@ -11,6 +14,7 @@ import org.bonitasoft.engine.bpm.document.Document;
 import org.bonitasoft.engine.bpm.document.DocumentCriterion;
 import org.bonitasoft.engine.bpm.document.DocumentException;
 import org.bonitasoft.engine.bpm.process.ProcessInstanceNotFoundException;
+import org.bonitasoft.engine.business.data.BusinessDataReference;
 import org.bonitasoft.log.event.BEvent;
 import org.bonitasoft.log.event.BEvent.Level;
 
@@ -29,9 +33,10 @@ public class CaseDetailsDocuments {
             "Result will not contains document content",
             "Check exception");
 
-
     /** utility class should privatise the constructor */
-    private CaseDetailsDocuments() {}
+    private CaseDetailsDocuments() {
+    }
+
     /**
      * @param caseDetails
      * @param caseHistoryParameter
@@ -41,23 +46,45 @@ public class CaseDetailsDocuments {
      */
     protected static void loadDocuments(CaseDetails caseDetails, CaseHistoryParameter caseHistoryParameter, ProcessAPI processAPI) {
         for (ProcessInstanceDescription processInstanceDescription : caseDetails.listProcessInstances) {
-            List<Document> listDocuments;
+            List<Document> listDocuments = new ArrayList<>();
             try {
-                listDocuments = processAPI.getLastVersionOfDocuments(processInstanceDescription.processInstanceId, 0, 1000,
-                        DocumentCriterion.NAME_ASC);
-           
-            if (listDocuments != null) {
-                for (Document document : listDocuments) {
-                    
-                    CaseDetailDocument caseDetailDocument = caseDetails.addCaseDetailDocument();
-                    caseDetailDocument.processInstanceid = processInstanceDescription.processInstanceId;
-                    caseDetailDocument.document = document;
+                Long sourceId = processInstanceDescription.processInstanceId;
+                if (!processInstanceDescription.isActive)
+                    sourceId = processInstanceDescription.archivedProcessInstanceId;
+                listDocuments.addAll(processAPI.getLastVersionOfDocuments(processInstanceDescription.processInstanceId, 0, 1000, DocumentCriterion.NAME_ASC));
+
+                try {
+                    // but the archive is based on the sourceArchivedid ...
+                    Map<String, Serializable> map = processAPI.getArchivedProcessInstanceExecutionContext(sourceId);
+                    for (String key : map.keySet()) {
+                        if (map.get(key) instanceof Document) {
+                            // we got an archive Business Data Reference !
+                            listDocuments.add((Document) map.get(key));
+                        }
+                        if (map.get(key) instanceof List) {
+                            List listDoc = (List) map.get(key);
+                            for (Object subRef : listDoc) {
+                                if (subRef instanceof Document)
+                                    // we got an archive Business Data Reference !
+                                    listDocuments.add((Document) subRef);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    caseDetails.listEvents.add(new BEvent(eventLoadDocumentFailed, e, ""));
+
                 }
+
+                for (Document document : listDocuments) {
+
+                    CaseDetailDocument caseDetailDocument = caseDetails.createInstanceCaseDetailDocument();
+                    caseDetailDocument.processInstanceId = processInstanceDescription.processInstanceId;
+                    caseDetailDocument.document = document;
                     
-            }
+                }
+
             } catch (ProcessInstanceNotFoundException | DocumentException e) {
-                // TODO Auto-generated catch block
-                caseDetails.listEvents.add( new BEvent(eventLoadDocumentFailed,  e, "ProcessInstance["+processInstanceDescription+"]"));
+                caseDetails.listEvents.add(new BEvent(eventLoadDocumentFailed, e, "ProcessInstance[" + processInstanceDescription + "]"));
             }
         }
     }

@@ -1,11 +1,14 @@
 package org.bonitasoft.casedetails;
 
+import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
-import org.bonitasoft.casedetails.CaseDetails.CaseDetailProcessVariable;
+import org.bonitasoft.casedetails.CaseDetails.CaseDetailVariable;
 import org.bonitasoft.casedetails.CaseDetails.ProcessInstanceDescription;
 import org.bonitasoft.casedetails.CaseDetails.ScopeVariable;
 import org.bonitasoft.casedetails.CaseDetailsAPI.CaseHistoryParameter;
@@ -47,7 +50,9 @@ public class CaseDetailsBDMVariables {
      * utility class should privatise the constructors
      * Default Constructor.
      */
-    private CaseDetailsBDMVariables() {}
+    private CaseDetailsBDMVariables() {
+    }
+
     /**
      * @param caseDetails
      * @param caseHistoryParameter
@@ -55,23 +60,47 @@ public class CaseDetailsBDMVariables {
      * @param businessDataAPI
      * @param apiSession
      */
-    @SuppressWarnings({ })
+    @SuppressWarnings({})
     protected static void loadVariables(CaseDetails caseDetails, CaseHistoryParameter caseHistoryParameter, ProcessAPI processAPI, BusinessDataAPI businessDataAPI, APISession apiSession) {
 
-        if (businessDataAPI==null)
+        if (businessDataAPI == null)
             return;
         for (ProcessInstanceDescription processInstanceDescription : caseDetails.listProcessInstances) {
-            // BDM
-            List<BusinessDataReference> listBdmReference = businessDataAPI.getProcessBusinessDataReferences(processInstanceDescription.processInstanceId, 0, 1000);
-            for (BusinessDataReference businessDataReference : listBdmReference) {
+            // BDM 3009
 
+            Long sourceId = processInstanceDescription.processInstanceId;
+            if (!processInstanceDescription.isActive)
+                sourceId = processInstanceDescription.archivedProcessInstanceId;
+
+            List<BusinessDataReference> listBdmReference = new ArrayList<>();
+
+            listBdmReference.addAll(businessDataAPI.getProcessBusinessDataReferences(sourceId, 0, 1000));
+            try {
+                Map<String, Serializable> map = processAPI.getArchivedProcessInstanceExecutionContext(sourceId);
+                for (String key : map.keySet()) {
+                    if (map.get(key) instanceof BusinessDataReference) {
+                        // we got an archive Business Data Reference !
+                        // logger.info(">>> Detect["+key+"] businessVariable");
+                        BusinessDataReference bde = (BusinessDataReference) map.get(key);
+                        listBdmReference.add(bde);
+                    }
+                }
+            } catch (Exception e) {
+                caseDetails.listEvents.add(new BEvent(eventLoadBdmFailed, e, ""));
+
+            }
+
+            for (BusinessDataReference businessDataReference : listBdmReference) {
+                boolean isMultiple=false;
                 List<Long> listStorageIds = new ArrayList<>();
 
-                if (businessDataReference instanceof SimpleBusinessDataReference) {                   
+                if (businessDataReference instanceof SimpleBusinessDataReference) {
                     // if null, add it even to have a result (bdm name + null)
                     listStorageIds.add(((SimpleBusinessDataReference) businessDataReference).getStorageId());
+                    isMultiple=false;
                 } else if (businessDataReference instanceof MultipleBusinessDataReference) {
                     // this is a multiple data
+                    isMultiple=true;
                     if (((MultipleBusinessDataReference) businessDataReference).getStorageIds() == null)
                         listStorageIds.add(null); // add a null value to have a
                                                   // result (bdm name + null) and
@@ -94,17 +123,26 @@ public class CaseDetailsBDMVariables {
                     BusinessObjectDAOFactory daoFactory = new BusinessObjectDAOFactory();
 
                     @SuppressWarnings("unchecked")
-                    BusinessObjectDAO dao = daoFactory.createDAO(apiSession, classDao);
+                    // if we don't have a session, it's not possible to load the BDM Object.... so, if loadContentBdmVariable is false, this is not an issue
+                    BusinessObjectDAO dao = null;
                     for (Long storageId : listStorageIds) {
                         if (storageId == null) {
                             continue;
                         }
-                        CaseDetailProcessVariable bdmVariable = caseDetails.addProcessVariableDetail();
+                        CaseDetailVariable bdmVariable = caseDetails.getProcessVariable( businessDataReference.getName());
+                        if (bdmVariable==null)
+                            bdmVariable= caseDetails.createInstanceProcessVariableDetail();
                         bdmVariable.name = businessDataReference.getName();
-                        bdmVariable.containerId = processInstanceDescription.processDefinitionId;
+                        bdmVariable.processInstanceId = processInstanceDescription.processInstanceId;
                         bdmVariable.scopeVariable = ScopeVariable.BDM;
+                        bdmVariable.bdmName = businessDataReference.getType();
+                        bdmVariable.listPersistenceId.add( storageId );
+                        bdmVariable.bdmIsMultiple=isMultiple;
                         Entity dataBdmEntity = null;
                         if (caseHistoryParameter.loadContentBdmVariables) {
+                            if (dao==null)
+                                dao = daoFactory.createDAO(apiSession, classDao);
+
                             // method findByPersistenceId exist, but is not declare in the interface
                             try {
                                 Method m = dao.getClass().getDeclaredMethod("findByPersistenceId", Long.class);

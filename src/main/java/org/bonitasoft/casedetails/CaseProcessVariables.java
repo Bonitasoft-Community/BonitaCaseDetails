@@ -6,16 +6,21 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Logger;
 
 import org.bonitasoft.casedetails.CaseDetails.CaseDetailFlowNode;
-import org.bonitasoft.casedetails.CaseDetails.CaseDetailProcessVariable;
+import org.bonitasoft.casedetails.CaseDetails.CaseDetailVariable;
 import org.bonitasoft.casedetails.CaseDetails.ProcessInstanceDescription;
+import org.bonitasoft.casedetails.CaseDetails.ScopeVariable;
 import org.bonitasoft.casedetails.CaseDetailsAPI.CaseHistoryParameter;
 import org.bonitasoft.engine.api.ProcessAPI;
+import org.bonitasoft.engine.bpm.data.ArchivedDataInstance;
 import org.bonitasoft.engine.bpm.data.DataInstance;
 import org.bonitasoft.engine.bpm.process.ProcessDefinition;
 import org.bonitasoft.log.event.BEvent;
@@ -41,52 +46,101 @@ public class CaseProcessVariables {
             "Result will not contains variables",
             "Check exception");
 
+    /**
+     * @param caseDetails
+     * @param caseHistoryParameter
+     * @param processAPI
+     */
     protected static void loadVariables(CaseDetails caseDetails, CaseHistoryParameter caseHistoryParameter, ProcessAPI processAPI) {
-        List<Map<String, Object>> listDataInstanceMap = new ArrayList<>();
 
+        loadProcessVariables(caseDetails, caseHistoryParameter, processAPI);
+        loadLocalVariables(caseDetails, caseHistoryParameter, processAPI);
+
+    }
+
+    /**
+     * load Process Variable, archive and active
+     * 
+     * @param caseDetails
+     * @param caseHistoryParameter
+     * @param processAPI
+     */
+    private static void loadProcessVariables(CaseDetails caseDetails, CaseHistoryParameter caseHistoryParameter, ProcessAPI processAPI) {
         for (ProcessInstanceDescription processInstanceDescription : caseDetails.listProcessInstances) {
             // maybe an archived ID
             try {
-                ProcessDefinition processDefinition = processAPI.getProcessDefinition(processInstanceDescription.processDefinitionId);
-                List<DataInstance> listDataInstances = null;
-                List<Map<String, Object>> listArchivedDataInstances = null;
-                List<Long> listSourceId = new ArrayList<Long>();
-                listSourceId.add(processInstanceDescription.processInstanceId);
-                // collect each list
+
+                // List<CaseDetailProcessVariable> listArchivedDataInstances = null;
+
+                // ------------------ Active
                 if (processInstanceDescription.isActive) {
-                    listDataInstances = processAPI.getProcessDataInstances(processInstanceDescription.processInstanceId, 0, 1000);
-
-                    //listArchivedDataInstances = processAPI.getArchivedProcessDataInstances(processInstanceDescription.id, 0, 1000);
-                    listArchivedDataInstances = loadArchivedProcessVariables(caseDetails, listSourceId, processAPI);
-
-                } else {
-                    listDataInstances = new ArrayList<DataInstance>();
-                    // listArchivedDataInstances = processAPI.getArchivedProcessDataInstances(processInstanceDescription.id, 0, 1000);
-                    listArchivedDataInstances = loadArchivedProcessVariables(caseDetails, listSourceId, processAPI);
+                    List<DataInstance> listDataInstances = processAPI.getProcessDataInstances(processInstanceDescription.processInstanceId, 0, 1000);
+                    for (DataInstance dataInstance : listDataInstances) {
+                        CaseDetailVariable processVariable = caseDetails.createInstanceProcessVariableDetail();
+                        processVariable.processInstanceId = processInstanceDescription.processInstanceId;
+                        processVariable.isArchived = false;
+                        processVariable.id = dataInstance.getId();
+                        processVariable.name = dataInstance.getName();
+                        processVariable.description = dataInstance.getDescription();
+                        processVariable.dataInstance = dataInstance;
+                        processVariable.dateArchived = null;
+                        processVariable.scopeVariable = ScopeVariable.PROCESS;
+                        processVariable.value = dataInstance.getValue();
+                    }
                 }
 
-               // completeListDataInstanceMap(listDataInstanceMap, ScopeVariable.PROCESS, null, listDataInstances, processDefinition, processInstanceDescription.id, "");
-               // completeListDataInstanceMap(listDataInstanceMap, ScopeVariable.PROCESS, StatusVariable.ARCHIVED, listArchivedDataInstances, processDefinition, processInstanceDescription.id, "");
+                // ----------------- archive
+                // the method retrieve only one value per archiveProcessData, not all the history
+                if (caseHistoryParameter.loadArchivedHistoryProcessVariable)
+                    loadArchivedProcessVariables(caseDetails, Arrays.asList(processInstanceDescription.processInstanceId), processAPI);
+                else {
+                    List<ArchivedDataInstance> listArchivedDataInstances = processAPI.getArchivedProcessDataInstances(processInstanceDescription.processInstanceId, 0, 1000);
+                    for (ArchivedDataInstance archivedDataInstance : listArchivedDataInstances) {
+                        CaseDetailVariable processVariable = caseDetails.createInstanceProcessVariableDetail();
+                        processVariable.processInstanceId = processInstanceDescription.processInstanceId;
+                        processVariable.isArchived = true;
+                        processVariable.id = archivedDataInstance.getSourceObjectId();
+                        processVariable.name = archivedDataInstance.getName();
+                        processVariable.description = archivedDataInstance.getDescription();
+                        processVariable.archivedDataInstance = archivedDataInstance;
+                        processVariable.dateArchived = archivedDataInstance.getArchiveDate();
+                        processVariable.scopeVariable = ScopeVariable.PROCESS;
+                        processVariable.value = archivedDataInstance.getValue();
+                    }
+                }
 
             } catch (Exception e) {
 
             }
 
         }
+    }
 
-        // collect local variable in activity - attention, the same sourceinstanceid can come up multiple time
+    /**
+     * @param caseDetails
+     * @param caseHistoryParameter
+     * @param processAPI
+     */
+    private static void loadLocalVariables(CaseDetails caseDetails, CaseHistoryParameter caseHistoryParameter, ProcessAPI processAPI) {
 
+        //--------------------------------------  collect local variable in activity - attention, the same sourceinstanceid can come up multiple time
+        Set<Long> registerSourceId = new HashSet<>();
         for (CaseDetailFlowNode caseDetailflowNode : caseDetails.listCaseDetailFlowNodes) {
             try {
+                
+                // active
                 if (caseDetailflowNode.activityInstance != null) {
-
+                    if (registerSourceId.contains(caseDetailflowNode.activityInstance.getId()))
+                        continue;
+                    registerSourceId.add(caseDetailflowNode.activityInstance.getId());
                     List<DataInstance> listDataInstances = processAPI.getActivityDataInstances(caseDetailflowNode.activityInstance.getId(), 0, 1000);
                     // the getActivityDataInstances return PROCESS_INSTANCE variable !!!
                     for (DataInstance dataInstance : listDataInstances) {
                         if (!dataInstance.getContainerType().equals("PROCESS_INSTANCE")) {
-                            CaseDetailProcessVariable processVariable = caseDetails.addProcessVariableDetail();
+                            CaseDetailVariable processVariable = caseDetails.createInstanceProcessVariableDetail();
                             processVariable.scopeVariable = CaseDetails.ScopeVariable.LOCAL;
-                            processVariable.containerId = caseDetailflowNode.activityInstance.getParentContainerId();
+                            processVariable.processInstanceId = caseDetailflowNode.activityInstance.getParentContainerId();
+                            processVariable.activityId = caseDetailflowNode.activityInstance.getId();
                             processVariable.contextInfo = caseDetailflowNode.activityInstance.getName() + "(" + caseDetailflowNode.activityInstance.getId() + ")";
                             processVariable.dataInstance = dataInstance;
                             processVariable.name = dataInstance.getName();
@@ -99,12 +153,37 @@ public class CaseProcessVariables {
                     }
 
                 }
+                
+                // archive
                 if (caseDetailflowNode.archFlownNodeInstance != null) {
-                    List<Long> listSourceId = new ArrayList<Long>();
-                    listSourceId.add(caseDetailflowNode.archFlownNodeInstance.getSourceObjectId());
+                    if (registerSourceId.contains(caseDetailflowNode.archFlownNodeInstance.getSourceObjectId()))
+                        continue;
+                    registerSourceId.add(caseDetailflowNode.archFlownNodeInstance.getSourceObjectId());
 
-                    loadArchivedProcessVariables(caseDetails, listSourceId, processAPI);
-                    // List<ArchivedDataInstance> listArchivedDataInstances =  processAPI.getArchivedActivityDataInstances( activitySourceInstanceId, 0, 1000);
+                    if (caseHistoryParameter.loadArchivedHistoryProcessVariable) {
+                        List<CaseDetailVariable> listLocalVariable = loadArchivedProcessVariables(caseDetails, Arrays.asList(caseDetailflowNode.archFlownNodeInstance.getSourceObjectId()), processAPI);
+                        // complete the processInstanceId
+                        for (CaseDetailVariable localVariable : listLocalVariable)
+                            localVariable.processInstanceId = caseDetailflowNode.getProcessInstanceId();
+                    } else {
+                        List<ArchivedDataInstance> listArchivedDataInstances = processAPI.getArchivedActivityDataInstances(caseDetailflowNode.archFlownNodeInstance.getSourceObjectId(), 0, 1000);
+                        for (ArchivedDataInstance archiveDataInstance : listArchivedDataInstances) {
+                            if (!archiveDataInstance.getContainerType().equals("PROCESS_INSTANCE")) {
+                                CaseDetailVariable processVariable = caseDetails.createInstanceProcessVariableDetail();
+                                processVariable.scopeVariable = CaseDetails.ScopeVariable.LOCAL;
+                                processVariable.processInstanceId = caseDetailflowNode.archFlownNodeInstance.getProcessInstanceId();
+                                processVariable.activityId = caseDetailflowNode.archFlownNodeInstance.getSourceObjectId();
+                                processVariable.contextInfo = caseDetailflowNode.archFlownNodeInstance.getName() + "(" + caseDetailflowNode.archFlownNodeInstance.getSourceObjectId() + ")";
+                                processVariable.archivedDataInstance = archiveDataInstance;
+                                processVariable.name = archiveDataInstance.getName();
+                                processVariable.description = archiveDataInstance.getDescription();
+                                processVariable.typeVariable = archiveDataInstance.getClassName();
+                                processVariable.dateArchived = archiveDataInstance.getArchiveDate();
+                                processVariable.isArchived = true;
+                                processVariable.value = archiveDataInstance.getValue();
+                            }
+                        }
+                    }
 
                 }
             } catch (Exception e) {
@@ -113,8 +192,6 @@ public class CaseProcessVariables {
 
             }
         }
-
-        return;
     }
 
     /**
@@ -126,7 +203,7 @@ public class CaseProcessVariables {
      * @param processAPI
      * @return
      */
-    private static List<Map<String, Object>> loadArchivedProcessVariables(CaseDetails caseDetails, List<Long> sourceId,
+    private static List<CaseDetailVariable> loadArchivedProcessVariables(CaseDetails caseDetails, List<Long> sourceId,
             ProcessAPI processAPI) {
         // the PROCESSAPI load as archive the current value.
         // Load the archived : do that in the table
@@ -134,13 +211,14 @@ public class CaseProcessVariables {
         Connection con = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
-        String sqlRequest = "";
-        List<Map<String, Object>> listArchivedDataInstanceMap = new ArrayList<Map<String, Object>>();
+        StringBuilder sqlRequest = new StringBuilder();
+        List<CaseDetailVariable> listProcessVariable = new ArrayList<>();
         try {
             // logger.info("Connect to [" + sqlDataSourceName + "]
             // loaddomainename[" + domainName + "]");
+            List<Object> listParameters = new ArrayList<>();
 
-            List<String> listColumnName = new ArrayList<String>();
+            List<String> listColumnName = new ArrayList<>();
             listColumnName.add("INTVALUE");
             listColumnName.add("LONGVALUE");
             listColumnName.add("SHORTTEXTVALUE");
@@ -150,35 +228,50 @@ public class CaseProcessVariables {
             listColumnName.add("BLOBVALUE");
             listColumnName.add("CLOBVALUE");
 
-            sqlRequest = "select NAME , CLASSNAME, CONTAINERID, SOURCEOBJECTID, ID,";
+            sqlRequest.append("select NAME , CLASSNAME, CONTAINERID, CONTAINERTYPE, SOURCEOBJECTID, ID, ");
             for (String columnName : listColumnName)
-                sqlRequest += columnName + ", ";
+                sqlRequest.append(columnName + ", ");
 
-            sqlRequest += " ARCHIVEDATE from ARCH_DATA_INSTANCE where CONTAINERID in (";
+            sqlRequest.append(" ARCHIVEDATE from ARCH_DATA_INSTANCE where CONTAINERID in (");
             // generate a ? per item
             for (int i = 0; i < sourceId.size(); i++) {
                 if (i > 0)
-                    sqlRequest += ",";
-                sqlRequest += " ? ";
+                    sqlRequest.append(",");
+                sqlRequest.append(" ? ");
+                listParameters.add(sourceId.get(i));
             }
-            sqlRequest += ") ORDER BY ARCHIVEDATE";
+            sqlRequest.append(") ");
+            if (caseDetails.tenantId != null) {
+                sqlRequest.append(" and TENANTID=? ");
+                listParameters.add(caseDetails.tenantId);
+
+            }
+            sqlRequest.append(" ORDER BY ARCHIVEDATE");
 
             con = CaseDetailsToolbox.getConnection();
 
-            pstmt = con.prepareStatement(sqlRequest);
+            pstmt = con.prepareStatement(sqlRequest.toString());
 
-            for (int i = 0; i < sourceId.size(); i++) {
-                pstmt.setObject(i + 1, sourceId.get(i));
+            for (int i = 0; i < listParameters.size(); i++) {
+                pstmt.setObject(i + 1, listParameters.get(i));
             }
 
             rs = pstmt.executeQuery();
-            while (rs.next() && listArchivedDataInstanceMap.size() < maxCount) {
-                CaseDetailProcessVariable processVariable = caseDetails.addProcessVariableDetail();
+            while (rs.next() && listProcessVariable.size() < maxCount) {
+                CaseDetailVariable processVariable = caseDetails.createInstanceProcessVariableDetail();
+                listProcessVariable.add(processVariable);
                 processVariable.isArchived = true;
+                processVariable.id = rs.getLong("ID");;
 
                 processVariable.name = rs.getString("NAME");
+                String containerType = rs.getString("CONTAINERTYPE");
+                processVariable.scopeVariable = "ACTIVITY_INSTANCE".equals(containerType) ? ScopeVariable.LOCAL : ScopeVariable.PROCESS;
                 processVariable.dateArchived = new Date((Long) rs.getLong("ARCHIVEDATE"));
-                processVariable.containerId = rs.getLong("CONTAINERID");
+                // save in the processInstanceId the ContainerId : in case of a process Variable, this is the process, else the activityId
+                if (ScopeVariable.PROCESS.equals(processVariable.scopeVariable))
+                    processVariable.processInstanceId = rs.getLong("CONTAINERID");
+                else
+                    processVariable.activityId = rs.getLong("CONTAINERID");
                 processVariable.sourceId = rs.getLong("SOURCEOBJECTID");
                 processVariable.typeVariable = rs.getString("CLASSNAME");
 
@@ -236,57 +329,8 @@ public class CaseProcessVariables {
                 }
             }
         }
-        return listArchivedDataInstanceMap;
+        return listProcessVariable;
 
     }
-    /*
-     * private static void completeListDataInstanceMap(List<Map<String, Object>> listDataInstanceMap, ScopeVariable scopeVariable, StatusVariable
-     * statusVariable, List<?> listDataInstances, ProcessDefinition processDefinition, Long processId, String contextInfo) {
-     * for (Object dataInstance : listDataInstances) {
-     * Map<String, Object> mapDataInstance = new HashMap<String, Object>();
-     * mapDataInstance.put("processname", processDefinition.getName());
-     * mapDataInstance.put("processversion", processDefinition.getVersion());
-     * mapDataInstance.put("processinstance", processId);
-     * mapDataInstance.put("scope", scopeVariable.toString());
-     * mapDataInstance.put("contextinfo", contextInfo);
-     * listDataInstanceMap.add(mapDataInstance);
-     * if (dataInstance instanceof DataInstance) {
-     * mapDataInstance.put("name", ((DataInstance) dataInstance).getName());
-     * mapDataInstance.put("description", ((DataInstance) dataInstance).getDescription());
-     * mapDataInstance.put("type", ((DataInstance) dataInstance).getClassName());
-     * mapDataInstance.put("datearchived", null);
-     * mapDataInstance.put("status", StatusVariable.ACTIF.toString());
-     * mapDataInstance.put("scope", scopeVariable.toString());
-     * mapDataInstance.put("value", getValueToDisplay(((DataInstance) dataInstance).getValue()));
-     * }
-     * if (dataInstance instanceof ArchivedDataInstance) {
-     * mapDataInstance.put("name", ((ArchivedDataInstance) dataInstance).getName());
-     * mapDataInstance.put("description", ((ArchivedDataInstance) dataInstance).getDescription());
-     * mapDataInstance.put("type", ((ArchivedDataInstance) dataInstance).getClassName());
-     * mapDataInstance.put("datearchived", null);
-     * mapDataInstance.put("status", StatusVariable.ARCHIVED.toString());
-     * mapDataInstance.put("scope", scopeVariable.toString());
-     * mapDataInstance.put("value", getValueToDisplay(((DataInstance) dataInstance).getValue()));
-     * }
-     * if (dataInstance instanceof Map) {
-     * mapDataInstance.putAll((Map<String, Object>) dataInstance);
-     * mapDataInstance.put("processinstance", processId);
-     * mapDataInstance.put("processname", processDefinition == null ? "" : processDefinition.getName());
-     * mapDataInstance.put("processversion", processDefinition == null ? "" : processDefinition.getVersion());
-     * //mapDataInstance.put("name", variable.get("name") );
-     * //mapDataInstance.put("description", variable.get("description"));
-     * //mapDataInstance.put("type", variable.get("type"));
-     * //mapDataInstance.put("datearchived", variable.get("datearchived"));
-     * // mapDataInstance.put("value", variable.get("value"));
-     * mapDataInstance.put("status", statusVariable.toString());
-     * mapDataInstance.put("scope", scopeVariable.toString());
-     * // String jsonSt = new JsonBuilder(variable.getValue()).toPrettyString();
-     * }
-     * /*
-     * Object dataValueJson = (jsonSt==null || jsonSt.length()==0) ?
-     * null : new JsonSlurper().parseText(jsonSt);
-     * mapDataInstance.put("value", dataValueJson);
-     * }
-     * }
-     */
+
 }
