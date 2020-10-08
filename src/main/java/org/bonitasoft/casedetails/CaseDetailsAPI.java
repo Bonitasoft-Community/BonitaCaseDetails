@@ -44,6 +44,10 @@ public class CaseDetailsAPI {
      * 
      * @return
      */
+    /** load the comment. Note: in archive table, Bonita save only the users comments. on Active, system and users are presents
+     * 
+     */
+    public enum LOADCOMMENTS { NONE, ALL, ONLYUSERS};
     public static class CaseHistoryParameter {
 
         /**
@@ -68,6 +72,9 @@ public class CaseDetailsAPI {
         public boolean loadEvents = true;
         public boolean loadTimers = true;
         public boolean loadDocuments = true;
+        
+        public LOADCOMMENTS loadComments=LOADCOMMENTS.ONLYUSERS;
+        
 
         public boolean contractInJsonFormat = false;
 
@@ -147,11 +154,14 @@ public class CaseDetailsAPI {
             if (caseHistoryParameter.loadProcessVariables)
                 CaseProcessVariables.loadVariables(caseDetails, caseHistoryParameter, processAPI);
             if (caseHistoryParameter.loadBdmVariables)
-                CaseDetailsBDMVariables.loadVariables(caseDetails, caseHistoryParameter, processAPI, businessDataAPI, apiSession);
+                CaseBDMVariables.loadVariables(caseDetails, caseHistoryParameter, processAPI, businessDataAPI, apiSession);
 
             // -------------------------------------------- Documents
             if (caseHistoryParameter.loadDocuments)
-                CaseDetailsDocuments.loadDocuments(caseDetails, caseHistoryParameter, processAPI);
+                CaseDocuments.loadDocuments(caseDetails, caseHistoryParameter, processAPI);
+            // -------------------------------------------- Documents
+            if (caseHistoryParameter.loadComments != LOADCOMMENTS.NONE)
+                CaseComments.loadComments(caseDetails, caseHistoryParameter.loadComments, caseHistoryParameter, processAPI);
 
         } catch (final Exception e) {
             final StringWriter sw = new StringWriter();

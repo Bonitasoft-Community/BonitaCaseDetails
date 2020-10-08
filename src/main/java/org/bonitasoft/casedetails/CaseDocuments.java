@@ -24,17 +24,17 @@ import org.bonitasoft.log.event.BEvent.Level;
 /*                                                                      */
 /* -------------------------------------------------------------------- */
 
-public class CaseDetailsDocuments {
+public class CaseDocuments {
 
-    final static Logger logger = Logger.getLogger(CaseDetailsDocuments.class.getName());
+    final static Logger logger = Logger.getLogger(CaseDocuments.class.getName());
 
-    private final static BEvent eventLoadDocumentFailed = new BEvent(CaseDetailsDocuments.class.getName(), 1, Level.ERROR, "Load document failed",
+    private final static BEvent eventLoadDocumentFailed = new BEvent(CaseDocuments.class.getName(), 1, Level.ERROR, "Load document failed",
             "Loading the content of a document failed",
             "Result will not contains document content",
             "Check exception");
 
     /** utility class should privatise the constructor */
-    private CaseDetailsDocuments() {
+    private CaseDocuments() {
     }
 
     /**

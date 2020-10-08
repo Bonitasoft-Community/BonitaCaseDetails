@@ -11,6 +11,8 @@ import java.util.Set;
 
 
 import org.bonitasoft.engine.bpm.actor.ActorInstance;
+import org.bonitasoft.engine.bpm.comment.ArchivedComment;
+import org.bonitasoft.engine.bpm.comment.Comment;
 import org.bonitasoft.engine.bpm.connector.ConnectorInstance;
 import org.bonitasoft.engine.bpm.data.ArchivedDataInstance;
 import org.bonitasoft.engine.bpm.data.DataInstance;
@@ -41,11 +43,11 @@ public class CaseDetails {
 
     public Long tenantId;
     // List<Long> listProcessInstanceId  = new ArrayList<Long>();
-    public long rootCaseId;
+    public Long rootCaseId;
 
     private CaseDetailsAPI caseDetailAPI;
 
-    protected CaseDetails(Long tenantId, long rootCaseId, CaseDetailsAPI caseDetailAPI) {
+    protected CaseDetails(Long tenantId, Long rootCaseId, CaseDetailsAPI caseDetailAPI) {
         this.tenantId = tenantId;
         this.rootCaseId = rootCaseId;
         this.caseDetailAPI = caseDetailAPI;
@@ -481,7 +483,6 @@ public class CaseDetails {
         public long processInstanceId;
         public Document document;
     }
-
     /**
      * Create an register the instance
      * @return
@@ -491,4 +492,26 @@ public class CaseDetails {
         listDocuments.add(documentVariable);
         return documentVariable;
     }
+
+      /* ************************************************************************ */
+    /*                                                                          */
+    /* Comments */
+    /*                                                                          */
+    /* ************************************************************************ */
+
+    public List<CaseDetailComment> listComments = new ArrayList<>();
+
+    public class CaseDetailComment {
+
+        public long processInstanceId;
+        public Comment comment;
+        public ArchivedComment archivedComment;
+    }
+    public CaseDetailComment createInstanceCaseDetailComment() {
+        CaseDetailComment commentVariable = new CaseDetailComment();
+        listComments.add(commentVariable);
+        return commentVariable;
+    }
+
+   
 }

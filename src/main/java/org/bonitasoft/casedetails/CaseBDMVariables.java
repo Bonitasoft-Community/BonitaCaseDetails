@@ -32,16 +32,16 @@ import org.json.simple.JSONValue;
 /* -------------------------------------------------------------------- */
 
 @SuppressWarnings("deprecation")
-public class CaseDetailsBDMVariables {
+public class CaseBDMVariables {
 
-    final static Logger logger = Logger.getLogger(CaseDetailsBDMVariables.class.getName());
+    final static Logger logger = Logger.getLogger(CaseBDMVariables.class.getName());
 
-    private final static BEvent eventLoadBdmContentFailed = new BEvent(CaseDetailsBDMVariables.class.getName(), 1, Level.ERROR, "Load BDM Content failed",
+    private final static BEvent eventLoadBdmContentFailed = new BEvent(CaseBDMVariables.class.getName(), 1, Level.ERROR, "Load BDM Content failed",
             "Loading the content of a BDM failed",
             "Result will not contains the BDM content",
             "Check exception");
 
-    private final static BEvent eventLoadBdmFailed = new BEvent(CaseDetailsBDMVariables.class.getName(), 2, Level.ERROR, "Load BDM variable failed",
+    private final static BEvent eventLoadBdmFailed = new BEvent(CaseBDMVariables.class.getName(), 2, Level.ERROR, "Load BDM variable failed",
             "Error when BDM is loaded",
             "Result will not contains the BDM",
             "Check exception");
@@ -50,7 +50,7 @@ public class CaseDetailsBDMVariables {
      * utility class should privatise the constructors
      * Default Constructor.
      */
-    private CaseDetailsBDMVariables() {
+    private CaseBDMVariables() {
     }
 
     /**
