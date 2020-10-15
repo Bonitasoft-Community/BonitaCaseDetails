@@ -205,10 +205,16 @@ public class CaseContract {
         if (value instanceof Map) {
             HashMap<String, Serializable> valueTranslated = new HashMap<String, Serializable>();
             for (String key : ((Map<String, Serializable>) value).keySet()) {
-                Map<String,Serializable> oneRecord = (Map<String, Serializable>) ((Map<String, Serializable>) value).get( key );
-                String typeRecord = (String) oneRecord.get( "type");
-                Object valueRecord = oneRecord.get("value");
-                valueTranslated.put(key,  untranslateContractValue(typeRecord, valueRecord));
+                Serializable valueKey=((Map<String, Serializable>) value).get( key );
+                if (valueKey instanceof Map) {
+                    Map<String,Serializable> oneRecord = (Map<String, Serializable>) ((Map<String, Serializable>) value).get( key );
+                    String typeRecord = (String) oneRecord.get( "type");
+                    Object valueRecord = oneRecord.get("value");
+                    valueTranslated.put(key,  untranslateContractValue(typeRecord, valueRecord));
+                }
+                else {
+                    valueTranslated.put(key, valueKey);
+                }
             }
             return valueTranslated;
         } else if (value instanceof List) {
