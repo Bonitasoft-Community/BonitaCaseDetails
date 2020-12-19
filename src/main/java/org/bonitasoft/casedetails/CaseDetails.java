@@ -160,6 +160,8 @@ public class CaseDetails {
 
         public Map<String, Serializable> listContractValues;
 
+        // detect that this task is part of a multi instantiation task 
+        public boolean isMultiInstanciationTask = false;
         /**
          * In case of a Human Tasks
          */
@@ -181,6 +183,7 @@ public class CaseDetails {
             return activityInstance != null ? activityInstance.getDisplayName() : archFlownNodeInstance.getDisplayName();
         }
 
+       
         public Long getId() {
             return activityInstance != null ? activityInstance.getId() : archFlownNodeInstance.getId();
         }

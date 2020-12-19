@@ -55,18 +55,20 @@ public class CaseDocuments {
 
                 try {
                     // but the archive is based on the sourceArchivedid ...
-                    Map<String, Serializable> map = processAPI.getArchivedProcessInstanceExecutionContext(sourceId);
-                    for (String key : map.keySet()) {
-                        if (map.get(key) instanceof Document) {
-                            // we got an archive Business Data Reference !
-                            listDocuments.add((Document) map.get(key));
-                        }
-                        if (map.get(key) instanceof List) {
-                            List listDoc = (List) map.get(key);
-                            for (Object subRef : listDoc) {
-                                if (subRef instanceof Document)
-                                    // we got an archive Business Data Reference !
-                                    listDocuments.add((Document) subRef);
+                    if (! processInstanceDescription.isActive) {
+                        Map<String, Serializable> map = processAPI.getArchivedProcessInstanceExecutionContext(sourceId);
+                        for (String key : map.keySet()) {
+                            if (map.get(key) instanceof Document) {
+                                // we got an archive Business Data Reference !
+                                listDocuments.add((Document) map.get(key));
+                            }
+                            if (map.get(key) instanceof List) {
+                                List listDoc = (List) map.get(key);
+                                for (Object subRef : listDoc) {
+                                    if (subRef instanceof Document)
+                                        // we got an archive Business Data Reference !
+                                        listDocuments.add((Document) subRef);
+                                }
                             }
                         }
                     }

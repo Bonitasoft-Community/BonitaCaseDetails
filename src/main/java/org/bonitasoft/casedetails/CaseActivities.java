@@ -88,8 +88,9 @@ public class CaseActivities {
         
         // SearchResult<ActivityInstance> searchActivity =
         // processAPI.searchActivities(searchOptionsBuilder.done());
+        // the mutitinstance may be active and the task already archived
+        Set<Long> multiInstanceTasks = new HashSet<>();
         try {
-
             final SearchResult<FlowNodeInstance> searchFlowNode = processAPI.searchFlowNodeInstances(searchOptionsBuilder.done());
 
             for (final FlowNodeInstance activityInstance : searchFlowNode.getResult()) {
@@ -97,6 +98,11 @@ public class CaseActivities {
                 flowNodeDetail.activityInstance = activityInstance;
 
                 flowNodeDetail.dateFlowNode = activityInstance.getLastUpdateDate();
+                if (multiInstanceTasks.contains( activityInstance.getParentContainerId()))
+                {
+                    // this is part of a multi instance
+                    flowNodeDetail.isMultiInstanciationTask = true;
+                }
                 // Human task
                 if (activityInstance instanceof HumanTaskInstance) {
                     HumanTaskInstance humanTaskInstance = (HumanTaskInstance) activityInstance;
@@ -133,6 +139,7 @@ public class CaseActivities {
 
                 if ("MULTI_INSTANCE_ACTIVITY".equals(activityInstance.getType().toString())) {
                     caseDetails.listMultiInstanceActivity.add(activityInstance.getFlownodeDefinitionId());
+                    multiInstanceTasks.add( activityInstance.getId() );
                 }
 
                 if (activityInstance.getExecutedBy() != 0) {
@@ -190,26 +197,52 @@ public class CaseActivities {
             try {
                 searchActivityArchived = processAPI.searchArchivedFlowNodeInstances(searchOptionsBuilder.done());
 
-                for (final ArchivedFlowNodeInstance flownNodeInstance : searchActivityArchived.getResult()) {
-                    if (setActivitiesRetrieved.contains(flownNodeInstance.getId()))
+                //  get the list of Aborted task : a aborted task has a READY, but the READY does't not contains contract
+                // the point is there is a READY when the task is created,
+                // and a READY + CONTRACT when the task is executed ! the first READY is overlap and we lost the information when the task was READY actually
+                //  (second status should be EXECUTED actually)
+                
+                Set<Long> abordedTask = new HashSet<>();
+
+                for (final ArchivedFlowNodeInstance flowNodeInstance : searchActivityArchived.getResult()) {
+                    if ((ActivityStates.ABORTED_STATE.equalsIgnoreCase(flowNodeInstance.getState())))
+                        abordedTask.add( flowNodeInstance.getSourceObjectId() );
+                }
+                for (final ArchivedFlowNodeInstance flowNodeInstance : searchActivityArchived.getResult()) {
+                    if (setActivitiesRetrieved.contains(flowNodeInstance.getId()))
                         continue;
 
                     CaseDetailFlowNode flowNodeDetail = caseDetails.createInstanceFlowNodeDetails();
-                    flowNodeDetail.archFlownNodeInstance = flownNodeInstance;
+                    flowNodeDetail.archFlownNodeInstance = flowNodeInstance;
 
-                    setActivitiesRetrieved.add(flownNodeInstance.getId());
-                    if (flownNodeInstance.getExecutedBy() != 0) {
+                    setActivitiesRetrieved.add(flowNodeInstance.getId());
+                    if (flowNodeInstance.getExecutedBy() != 0) {
                         try {
-                            flowNodeDetail.userExecutedBy = identityAPI.getUser(flownNodeInstance.getExecutedBy());
+                            flowNodeDetail.userExecutedBy = identityAPI.getUser(flowNodeInstance.getExecutedBy());
                         } catch (final UserNotFoundException ue) {
-                        } ;
+                        } 
                     }
+                    
+                    if (multiInstanceTasks.contains( flowNodeInstance.getParentContainerId()))
+                    {
+                        // this is part of a multi instance
+                        flowNodeDetail.isMultiInstanciationTask = true;
+                    }
+                 
+                    if ("MULTI_INSTANCE_ACTIVITY".equals(flowNodeInstance.getType().toString())) {
+                        caseDetails.listMultiInstanceActivity.add(flowNodeInstance.getFlownodeDefinitionId());
+                        multiInstanceTasks.add( flowNodeInstance.getSourceObjectId() );
+                    }
+
                     // only on archived READY state
-                    if (caseHistoryParameter.loadContract && flownNodeInstance instanceof ArchivedHumanTaskInstance && (ActivityStates.READY_STATE.equalsIgnoreCase(flownNodeInstance.getState())))
+                    if (caseHistoryParameter.loadContract 
+                            && flowNodeInstance instanceof ArchivedHumanTaskInstance
+                            && (! abordedTask.contains( flowNodeInstance.getSourceObjectId() ))
+                            && (ActivityStates.READY_STATE.equalsIgnoreCase(flowNodeInstance.getState())))
                         try {
-                            flowNodeDetail.listContractValues = CaseContract.getContractTaskValues(caseDetails, caseHistoryParameter, (ArchivedHumanTaskInstance) flownNodeInstance, processAPI);
+                            flowNodeDetail.listContractValues = CaseContract.getContractTaskValues(caseDetails, caseHistoryParameter, (ArchivedHumanTaskInstance) flowNodeInstance, processAPI);
                         } catch (Exception e) {
-                            caseDetails.listEvents.add(new BEvent(eventContractTasksFailed, e, "During activity [" + flownNodeInstance.getId() + "]"));
+                            caseDetails.listEvents.add(new BEvent(eventContractTasksFailed, e, "During activity [" + flowNodeInstance.getId() + "]"));
                         }
                 }
             } catch (SearchException e1) {
