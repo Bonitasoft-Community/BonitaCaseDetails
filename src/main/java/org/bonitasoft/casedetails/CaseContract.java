@@ -250,6 +250,18 @@ public class CaseContract {
         } else if ("java.util.Date".equals(type)) {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH24:mm:ss'Z'");
                 return sdf.parse(value.toString());
+        } else if ("java.lang.Integer".equals(type)) {
+            try {
+                return Integer.valueOf( value.toString() );
+            } catch(Exception e ) {
+              return null;
+            }
+        } else if ("java.lang.Long".equals(type)) {
+            try {
+                return Long.valueOf( value.toString() );
+            } catch(Exception e ) {
+              return null;
+            }
         } else
             return (Serializable) value;
         }
